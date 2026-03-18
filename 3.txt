@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GreenHarvest Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2e7d32", // Overriding with Green for GreenHarvest as requested
+                        "background-light": "#f8fdf8",
+                        "background-dark": "#121a12",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
+<div class="flex min-h-screen">
+<!-- Sidebar -->
+<aside class="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark hidden lg:flex flex-col sticky top-0 h-screen">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary p-2 rounded-lg text-white">
+<span class="material-symbols-outlined">eco</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight text-primary">GreenHarvest</h1>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl bg-primary text-white" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-sm font-medium">Catalog</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="text-sm font-medium">Orders</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-sm font-medium">Suppliers</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-sm font-medium">Reports</span>
+</a>
+</nav>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-3 px-3 py-2">
+<div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden">
+<img alt="Admin Profile" class="w-full h-full object-cover" data-alt="Avatar of the admin user" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCsqX2_oD_7ONkke1QZMffSv39drHqfeL2krnw2o5K_keeiJFLaBkuQ-Vo88KKOU6CVRQ1ppMQ3y_7JTxzRKKHirjLdY8XB0JJZ_OGOb4iEEZzGQfkcistWHQXdp58yK-EFLexDPdlJnQiTLAAWGpsgi3UwzLZxCPvCrtYnc7MLqI2lxZwvnlhcHTgmfe5wv20EK5mVMH--5irtIjtMLA_Lf6IynDvm0mJIlNU3OVePF4yi3k4N70xXwr9yWqqiH-xxz3qJA98BM5my"/>
+</div>
+<div>
+<p class="text-sm font-semibold">Alex River</p>
+<p class="text-xs text-slate-500">Store Manager</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-background-dark/80 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-8">
+<h2 class="text-lg font-semibold">Product Management</h2>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+</button>
+</div>
+</header>
+<div class="p-8 max-w-6xl mx-auto space-y-8">
+<!-- Add Product Section -->
+<section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<h3 class="text-xl font-bold">Add New Product</h3>
+<p class="text-slate-500 text-sm">Fill in the details to add a new fresh item to the GreenHarvest inventory.</p>
+</div>
+<form class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-4">
+<div>
+<label class="block text-sm font-medium mb-1.5">Product Name</label>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary" placeholder="e.g. Organic Roma Tomatoes" type="text"/>
+</div>
+<div>
+<label class="block text-sm font-medium mb-1.5">Category</label>
+<select class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary">
+<option>Vegetables</option>
+<option>Fruits</option>
+<option>Herbs</option>
+<option>Berries</option>
+</select>
+</div>
+<div>
+<label class="block text-sm font-medium mb-1.5">Country of Origin</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">public</span>
+<input class="w-full pl-10 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary" placeholder="e.g. Italy" type="text"/>
+</div>
+</div>
+<div>
+<label class="block text-sm font-medium mb-1.5">Price per Unit ($)</label>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary" placeholder="4.99" step="0.01" type="number"/>
+</div>
+</div>
+<div class="space-y-4">
+<label class="block text-sm font-medium mb-1.5">Product Image</label>
+<div class="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl h-48 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-4xl text-slate-400 group-hover:text-primary transition-colors">upload_file</span>
+<p class="text-sm text-slate-500 mt-2">Click to upload or drag and drop</p>
+<p class="text-xs text-slate-400 mt-1">PNG, JPG up to 5MB</p>
+</div>
+<div class="pt-4 flex items-end h-full">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2" type="submit">
+<span class="material-symbols-outlined">add_circle</span>
+                                Add Product to Catalog
+                            </button>
+</div>
+</div>
+</form>
+</section>
+<!-- Recent Products Table -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-xl font-bold">Recently Added</h3>
+<button class="text-primary text-sm font-semibold hover:underline">View All</button>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Product</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Category</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Origin</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Price</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Stock Status</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden">
+<img alt="Kale" class="w-full h-full object-cover" data-alt="Fresh organic green kale leaves" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB70NDYE_ReQrzcQ2NG7rcuu4jddiXB_LiNTrqSr_nztv00dd21CtDh2nWLBbJRgYDoZ_RW4yIiNdYqvtH2MUqmr9wDR4L3C61UPMV98w9GYUF83PJ8Act748-mU25_inRJkiGSc2aI49f6AspquDlVnrQhKqizH4N7YIokUjjlmWm-MrQlOERBpMIK070pPNxzaNaKx92E4eguZJzNgNOZT0U0Enl945No_MrP6jDHGIzjo7_u2Zbu9y6xJWtDAN1Lt32HxN_6AtWs"/>
+</div>
+<span class="font-medium text-sm">Organic Kale</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Vegetables</span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">California, USA</td>
+<td class="px-6 py-4 text-sm font-semibold">$3.49</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-primary font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                            In Stock
+                                        </div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-red-500 transition-colors ml-2">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden">
+<img alt="Strawberries" class="w-full h-full object-cover" data-alt="Punnet of ripe red strawberries" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDeD0Fmf3--jT4nJjDZh9LAnkJhQQ4d04zO-KDX5R4O5_l4kmrlts4PrpjxcXtoKh_MTtP1uoNu4IOEL4xm8RHtaSnp8nEgmGMWkfwcglvx16wsu66jSSucp1XzgQf-RqXL4XF7uxEwwsBXZUjpRaQwr1XxeZv6rFyRmMVyB9Izz4i7q6XhLkYeCAQ6iAdbkrbZ3cqAPL6Z1RC9atwuofskiYoCGa46oBkrmWnZ1_GoicrQJY9RegXhgwcrqmuYnj2jwqT5GtRoEhg4"/>
+</div>
+<span class="font-medium text-sm">Wild Strawberries</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Berries</span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">Spain</td>
+<td class="px-6 py-4 text-sm font-semibold">$5.99</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                            Low Stock
+                                        </div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-red-500 transition-colors ml-2">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden">
+<img alt="Basil" class="w-full h-full object-cover" data-alt="Fresh organic green basil leaves" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOSAFGXiVS9GI5DFvV1GyCVOdBDKjoXWlwznyltOeBSCWTseFs7olGQkd_reZjuWcaqM2SeS60lvND9Ro_kURFj2GnyRtIQ4cuim_ZVSHDn6MZ7O6LE7MFQna2aO78XSQjf9oEup2QtKAI6qI_3K1zT3In4-iLn5JcRgMWGKYbpeMO4TXKzv5iof41nzRaw3z-LljSlr3jLrFGqrO2M6e8KlYep3vSupSvPZixx6Ujw1Q23H7-ZQtc459zu-7S87KfLIRZ_7YkGA7U"/>
+</div>
+<span class="font-medium text-sm">Fresh Basil</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">Herbs</span>
+</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">Local Greenhouse</td>
+<td class="px-6 py-4 text-sm font-semibold">$2.25</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-primary font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                            In Stock
+                                        </div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-red-500 transition-colors ml-2">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body></html>
