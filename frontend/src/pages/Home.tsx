@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "../components/Header";
 
@@ -14,11 +14,64 @@ export default function Home() {
         "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1400&q=80",
       categoryVeg:
         "https://images.unsplash.com/photo-1543083477-4f785aeafaa9?auto=format&fit=crop&w=1400&q=80",
-      testimonialPhoto:
-        "https://images.unsplash.com/photo-1546549032-9571cd6b27df?auto=format&fit=crop&w=1400&q=80",
     }),
     [],
   );
+
+  const testimonials = useMemo(
+    () => [
+      {
+        id: "anna",
+        text: '“Качество продуктов просто потрясающее! Овощи пахнут землей и летом, а не пластиком, как в супермаркетах. Доставка приехала за 45 минут.”',
+        name: "Анна К.",
+        subtitle: "Постоянный клиент",
+        avatarText: "АК",
+      },
+      {
+        id: "elena",
+        text: '“Вот такую красоту привезли сегодня! Посмотрите на эти томаты — они просто сахарные.”',
+        name: "Елена П.",
+        subtitle: "Любитель томатов",
+        avatarText: "ЕЛ",
+      },
+      {
+        id: "mikhail",
+        text: '“Очень удобно заказывать наборы для салата. Все ингредиенты свежайшие, аккуратно упакованы. Теперь за овощами — только к вам!”',
+        name: "Михаил В.",
+        subtitle: "Заказывает 3 раза в неделю",
+        avatarText: "МВ",
+      },
+      {
+        id: "irina",
+        text: '“Наконец-то нашла наборы, где всё действительно сочное и спелое. Курьер приезжает аккуратно, упаковка не промокает.”',
+        name: "Ирина С.",
+        subtitle: "Покупаю по подписке",
+        avatarText: "ИС",
+      },
+      {
+        id: "sergey",
+        text: '“Порадовало качество и вкус. Особенно понравились зелень и травы: аромат остаётся даже после хранения в холодильнике.”',
+        name: "Сергей М.",
+        subtitle: "Любитель зелени",
+        avatarText: "СМ",
+      },
+      {
+        id: "olga",
+        text: '“Свежесть держится дольше, чем у привычных овощей. Готовить стало намного проще: всё уже подобрано и сочетается.”',
+        name: "Ольга Н.",
+        subtitle: "Готовит дома каждый день",
+        avatarText: "ОН",
+      },
+    ],
+    [],
+  );
+
+  const [activeTestimonialIndex, setActiveTestimonialIndex] = useState(0);
+  const [cardsPerView, setCardsPerView] = useState(1);
+  const [translateX, setTranslateX] = useState(0);
+  const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  const maxIndex = Math.max(0, testimonials.length - cardsPerView);
 
   useEffect(() => {
     const REVEAL_KEY = "gh_reveal_done_v1";
@@ -63,6 +116,62 @@ export default function Home() {
       observer = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("matchMedia" in window)) return;
+
+    const mq = window.matchMedia("(min-width: 768px)");
+
+    const update = () => setCardsPerView(mq.matches ? 3 : 1);
+    update();
+
+    if (typeof (mq as any).addEventListener === "function") {
+      mq.addEventListener("change", update);
+    } else {
+      // Fallback for older browsers
+      (mq as any).addListener?.(update);
+    }
+
+    return () => {
+      if (typeof (mq as any).removeEventListener === "function") {
+        mq.removeEventListener("change", update);
+      } else {
+        // Fallback for older browsers
+        (mq as any).removeListener?.(update);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setActiveTestimonialIndex((prev) => Math.min(prev, maxIndex));
+  }, [maxIndex]);
+
+  useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      "matchMedia" in window &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) return;
+    if (maxIndex <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setActiveTestimonialIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1));
+    }, 6500);
+
+    return () => window.clearInterval(intervalId);
+  }, [maxIndex]);
+
+  useEffect(() => {
+    const el = cardRefs.current[activeTestimonialIndex];
+    if (!el) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setTranslateX(-el.offsetLeft);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeTestimonialIndex, cardsPerView]);
 
   return (
     <>
@@ -339,82 +448,85 @@ export default function Home() {
             <p className="text-gray-500 text-center mb-16" data-reveal>
               Более 10,000 счастливых семей уже доверяют нам свой рацион.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div
-                className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full transition-all duration-300 ease-out will-change-transform hover:-translate-y-2 hover:shadow-xl hover:border-gray-200"
-                data-reveal
-              >
-                <div className="flex text-yellow-400 mb-4">
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                </div>
-                <p className="text-gray-600 mb-8 flex-grow italic">
-                  "Качество продуктов просто потрясающее! Овощи пахнут землей и летом, а не пластиком, как в супермаркетах.
-                  Доставка приехала за 45 минут."
-                </p>
-                <div className="flex items-center space-x-4 border-t pt-6 border-gray-50">
-                  <img
-                    alt="Анна К."
-                    className="w-12 h-12 rounded-full object-cover transition-transform duration-300 ease-out"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDotQInBNiFTzc59E9ca126Oz8KTgDyMwXlNzcbzHTB37D3t7xJimRZcJk53tMp0CtIsZTBMFQB4rfS_kcRO8Y4UfdLPmGNnHBxlMSxS6wyUC3zgFyrl2p7SHsOfx0QBQYoGC4SzdEUMJJnvI1MVySHrFj63_dMgjChydmoj3CMrHiwvKHinvPwoe6SdpvEifF01-ZFvgEsTtzPLkwGS7VSh2jHYR30LumrAb1V8i88zSNGl2Sa6QHJZ_9OK4CXe1W-5RW0C-FnIXQ"
-                  />
-                  <div>
-                    <p className="font-bold text-forest-green">Анна К.</p>
-                    <p className="text-xs text-gray-400 uppercase tracking-widest">Постоянный клиент</p>
-                  </div>
-                </div>
-              </div>
+            <div className="relative" data-reveal>
+              <div className="overflow-hidden">
+                <div
+                  className="flex gap-0 md:gap-4 transition-transform duration-500 ease-out"
+                  style={{ transform: `translateX(${translateX}px)` }}
+                >
+                  {testimonials.map((t, idx) => (
+                    <div
+                      key={t.id}
+                      ref={(el) => {
+                        cardRefs.current[idx] = el;
+                      }}
+                      className="shrink-0 w-full md:w-[calc((100%-2rem)/3)]"
+                    >
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full min-h-[320px] transition-all duration-300 ease-out will-change-transform hover:-translate-y-2 hover:shadow-xl hover:border-gray-200">
+                        <div className="flex text-yellow-400 mb-4">
+                          <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        </div>
 
-              <div
-                className="bg-forest-green p-1 rounded-3xl shadow-xl transform md:-translate-y-4 transition-transform duration-300 ease-out will-change-transform hover:-translate-y-2 md:hover:-translate-y-6"
-                data-reveal
-              >
-                <div className="bg-white p-8 rounded-[1.4rem] h-full flex flex-col transition-shadow duration-300 ease-out hover:shadow-2xl">
-                  <span className="inline-block self-start bg-orange-100 text-vibrant-orange text-[10px] font-bold px-2 py-1 rounded-full mb-4 uppercase tracking-tighter">
-                    Фото от клиента
-                  </span>
-                  <img
-                    alt="Customer Photo"
-                    className="w-full rounded-2xl mb-6 transition-transform duration-300 ease-out hover:scale-[1.02]"
-                    loading="lazy"
-                    src={images.testimonialPhoto}
-                  />
-                  <p className="text-gray-600 mb-4 flex-grow italic">
-                    "Вот такую красоту привезли сегодня! Посмотрите на эти томаты — они просто сахарные."
-                  </p>
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <p className="font-bold text-forest-green">Елена П.</p>
-                      <p className="text-xs text-gray-400">Любитель томатов</p>
+                        <p className="text-gray-600 mb-8 flex-grow italic">{t.text}</p>
+
+                        <div className="flex items-center space-x-4 border-t pt-6 border-gray-50">
+                          <div className="w-12 h-12 rounded-full bg-leaf-green/10 text-leaf-green font-bold flex items-center justify-center">
+                            {t.avatarText}
+                          </div>
+                          <div>
+                            <p className="font-bold text-forest-green">{t.name}</p>
+                            <p className="text-xs text-gray-400 uppercase tracking-widest">{t.subtitle}</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 
-              <div
-                className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full transition-all duration-300 ease-out will-change-transform hover:-translate-y-2 hover:shadow-xl hover:border-gray-200"
-                data-reveal
+              <button
+                type="button"
+                aria-label="Предыдущий отзыв"
+                disabled={maxIndex <= 0}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm hover:border-gray-300 hover:shadow-md transition-shadow flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() =>
+                  setActiveTestimonialIndex((prev) => (prev - 1 < 0 ? maxIndex : prev - 1))
+                }
               >
-                <div className="flex text-yellow-400 mb-4">
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                </div>
-                <p className="text-gray-600 mb-8 flex-grow italic">
-                  "Очень удобно заказывать наборы для салата. Все ингредиенты свежайшие, аккуратно упакованы. Теперь за овощами — только к вам!"
-                </p>
-                <div className="flex items-center space-x-4 border-t pt-6 border-gray-50">
-                  <img
-                    alt="Михаил В."
-                    className="w-12 h-12 rounded-full object-cover transition-transform duration-300 ease-out"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXCHzIjwkQAv9iOq00Nh6GcGSJYmDKuT4Cmp-YANEEzftfM_W99TdUELr_2gI6Y4jsgmem00riGcWjNHIgTSlGxLnDv4eYpJz9R6nUHS6l-Hl-jetXU9og34pjRfuMnMfE4OQzUZsCJsIdicQt1YrozN_inpHrivzP9L--iP9CksgxBATV6NcdVhmDO3Fh3Wpd-eYFiyQkVwG2MjWdMFxjX8pkqEcbVlULZsGM6lwv6SbQvR21ASdfWKdCQcLLfKK0y05bNUbtRhY"
+                <svg className="w-5 h-5 text-gray-600" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M12.5 4.5L7.5 9.5L12.5 14.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Следующий отзыв"
+                disabled={maxIndex <= 0}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm hover:border-gray-300 hover:shadow-md transition-shadow flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() =>
+                  setActiveTestimonialIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1))
+                }
+              >
+                <svg className="w-5 h-5 text-gray-600" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M7.5 4.5L12.5 9.5L7.5 14.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+
+              <div className="flex items-center justify-center gap-2 mt-6">
+                {Array.from({ length: maxIndex + 1 }).map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    aria-label={`Перейти к группе отзывов ${idx + 1}`}
+                    className={[
+                      "w-2.5 h-2.5 rounded-full transition-colors",
+                      idx === activeTestimonialIndex ? "bg-leaf-green" : "bg-gray-300 hover:bg-gray-400",
+                    ].join(" ")}
+                    onClick={() => setActiveTestimonialIndex(idx)}
                   />
-                  <div>
-                    <p className="font-bold text-forest-green">Михаил В.</p>
-                    <p className="text-xs text-gray-400 uppercase tracking-widest">Заказывает 3 раза в неделю</p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -576,7 +688,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
-            <p>© 2024 Зелёный Сад (GreenHarvest). Все права защищены.</p>
+            <p>© 2026 Зелёный Сад (GreenHarvest). Все права защищены.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a className="hover:text-forest-green" href="#">
                 Политика конфиденциальности

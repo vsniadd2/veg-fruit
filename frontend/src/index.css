@@ -90,3 +90,23 @@ html {
   }
 }
 
+/* Нативный select: стилизация пунктов выпадающего списка (зависит от браузера/ОС).
+   Полностью одинаково не будет на всех платформах, но базовый цвет фона/текста обычно меняется. */
+.sort-select option {
+  background: #ffffff;
+  color: #111827;
+  font-weight: 600;
+  /* Нативный <option> не везде поддерживает border-radius, но это не вредит,
+     а на части платформ может сделать визуально мягче. */
+  border-radius: 12px;
+}
+
+.sort-select option:checked {
+  background: #f1f8f4;
+  color: #2d6a4f;
+}
+
+.sort-select {
+  color: #111827;
+}
+

@@ -1,27 +1,129 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 
 type ProductBadge =
-  | { kind: "seasonal"; label: "СЕЗОННОЕ"; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" }
-  | { kind: "hit"; label: "ХИТ"; className: "bg-[#f3722c] text-white" }
-  | { kind: "organic"; label: "ОРГАНИК"; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
+  | { kind: "seasonal"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" }
+  | { kind: "hit"; label: string; className: "bg-[#f3722c] text-white" }
+  | { kind: "organic"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
 
 type Product = {
   id: string;
   name: string;
   country: string;
   imageUrl: string;
-  category: "vegetables" | "fruits" | "greens" | "berries";
+  category: string; // categoryId from backend (or slug in mock fallback)
+  categoryName?: string | null; // for convenience in UI
   badge?: ProductBadge;
 };
 
 export default function Catalog() {
+  const API_BASE_URL = "http://localhost:3001";
+
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"default" | "name" | "season">("default");
   const [category, setCategory] = useState<Product["category"]>("vegetables");
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
-  const products = useMemo<Product[]>(
+  const [apiProducts, setApiProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/public/categories`);
+        if (!res.ok) throw new Error(`http_${res.status}`);
+        const data = (await res.json()) as { ok?: boolean; items?: Array<{ id: string; name: string }> };
+        if (cancelled) return;
+        setCategories(data.items ?? []);
+      } catch {
+        if (cancelled) return;
+        setCategories([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!categories.length) return;
+    setCategory((prev) => (categories.some((c) => c.id === prev) ? prev : categories[0]!.id));
+  }, [categories]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const q = query.trim();
+          const params = new URLSearchParams();
+          params.set("page", "1");
+          params.set("pageSize", "50");
+          if (q) params.set("q", q);
+
+          const res = await fetch(`${API_BASE_URL}/api/products?${params.toString()}`, { signal: controller.signal });
+          if (!res.ok) throw new Error(`http_${res.status}`);
+          const data = (await res.json()) as { items?: Array<any> };
+
+          const badgeFromApi = (badge: any): ProductBadge | undefined => {
+            if (!badge?.kind) return undefined;
+            const kind = String(badge.kind).trim();
+            const label = typeof badge.label === "string" ? (badge.label as string) : "";
+
+            if (kind === "seasonal") {
+              return { kind: "seasonal", label: label || "СЕЗОННОЕ", className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
+            }
+            if (kind === "hit") {
+              return { kind: "hit", label: label || "ХИТ", className: "bg-[#f3722c] text-white" };
+            }
+            if (kind === "organic") {
+              return { kind: "organic", label: label || "ОРГАНИК", className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
+            }
+            return undefined;
+          };
+
+          const toAbsoluteImageUrl = (url: string) => {
+            if (!url) return "";
+            if (url.startsWith("http://") || url.startsWith("https://")) return url;
+            if (url.startsWith("/")) return `${API_BASE_URL}${url}`;
+            return `${API_BASE_URL}/${url}`;
+          };
+
+          const mapped: Product[] = (data.items ?? [])
+            .map((it: any) => {
+              const badge = badgeFromApi(it.badge);
+              return {
+                id: String(it.id),
+                name: String(it.name ?? ""),
+                country: String(it.country ?? ""),
+                imageUrl: toAbsoluteImageUrl(String(it.imageUrl ?? "")),
+                category: String(it.categoryId ?? ""),
+                categoryName: it.categoryName ?? null,
+                badge,
+              } as Product;
+            })
+            .filter((p: Product) => Boolean(p.category));
+
+          if (!cancelled) setApiProducts(mapped);
+        } catch {
+          if (!cancelled) setApiProducts([]);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
+  const mockProducts = useMemo<Product[]>(
     () => [
       {
         id: "tomatoes",
@@ -97,25 +199,29 @@ export default function Catalog() {
     [],
   );
 
-  const categoryMeta = useMemo(
-    () =>
-      [
-        { id: "vegetables" as const, label: "Овощи" },
-        { id: "fruits" as const, label: "Фрукты" },
-        { id: "greens" as const, label: "Зелень и травы" },
-        { id: "berries" as const, label: "Ягоды" },
-      ] as const,
+  const products = apiProducts.length ? apiProducts : mockProducts;
+
+  const fallbackCategories = useMemo(
+    () => [
+      { id: "vegetables", label: "Овощи" },
+      { id: "fruits", label: "Фрукты" },
+      { id: "greens", label: "Зелень и травы" },
+      { id: "berries", label: "Ягоды" },
+    ],
     [],
   );
 
+  const categoriesToShow = useMemo(
+    () => (categories.length ? categories.map((c) => ({ id: c.id, label: c.name })) : fallbackCategories),
+    [categories, fallbackCategories],
+  );
+
   const categoryCounts = useMemo(() => {
-    const counts: Record<Product["category"], number> = {
-      vegetables: 0,
-      fruits: 0,
-      greens: 0,
-      berries: 0,
-    };
-    for (const p of products) counts[p.category] += 1;
+    const counts: Record<string, number> = {};
+    for (const p of products) {
+      const key = p.category || "";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
     return counts;
   }, [products]);
 
@@ -173,7 +279,7 @@ export default function Catalog() {
           <aside className="w-full" data-purpose="category-sidebar">
             <h2 className="text-xl font-bold mb-6">Категории</h2>
             <ul className="space-y-3">
-              {categoryMeta.map((c) => {
+              {categoriesToShow.map((c) => {
                 const isActive = c.id === category;
                 return (
                   <li key={c.id}>
@@ -196,7 +302,7 @@ export default function Catalog() {
                           isActive ? "bg-white text-[#52b788]" : "bg-gray-200 text-gray-600",
                         ].join(" ")}
                       >
-                        {categoryCounts[c.id]}
+                        {categoryCounts[c.id] ?? 0}
                       </span>
                     </button>
                   </li>
@@ -219,7 +325,7 @@ export default function Catalog() {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-gray-500">
-                  Найдено: {filteredProducts.length} товара(ов) в категории "{categoryMeta.find((c) => c.id === category)?.label}"
+                  Найдено: {filteredProducts.length} товара(ов) в категории "{categoriesToShow.find((c) => c.id === category)?.label ?? ""}"
                 </p>
                 <div className="max-w-md">
                   <input
@@ -239,7 +345,7 @@ export default function Catalog() {
                 <span className="text-sm text-gray-600">Сортировать:</span>
                 <div className="relative">
                   <select
-                    className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-sm font-semibold rounded-xl px-4 py-2 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#52b788] focus:border-transparent transition-colors"
+                    className="sort-select appearance-none bg-white border border-gray-200 hover:border-gray-300 text-sm font-semibold rounded-2xl px-5 py-2.5 pr-12 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]/30 focus:border-transparent transition-colors"
                     value={sort}
                     onChange={(e) => {
                       const value = e.target.value as typeof sort;
@@ -253,7 +359,7 @@ export default function Catalog() {
                   </select>
                   <svg
                     aria-hidden="true"
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -492,7 +598,7 @@ export default function Catalog() {
           </div>
 
           <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 space-y-4 md:space-y-0">
-            <p>© 2024 Зелёный Сад (GreenHarvest). Все права защищены.</p>
+            <p>© 2026 Зелёный Сад (GreenHarvest). Все права защищены.</p>
             <div className="flex space-x-6">
               <a className="hover:text-[#52b788]" href="#">
                 Политика конфиденциальности

@@ -106,6 +106,17 @@ app.get("/api/admin/verify", async (req, res) => {
   res.json({ ok: true, role: "admin" });
 });
 
+// Public categories for the customer-facing catalog.
+// Admin token is NOT required.
+app.get("/api/public/categories", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`select id, name from categories order by name asc`);
+    res.json({ ok: true, items: rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 app.get("/api/categories", async (req, res) => {
   const payload = requireAdmin(req, res);
   if (!payload) return;
@@ -317,9 +328,6 @@ app.get("/api/products", async (req, res) => {
 });
 
 app.get("/api/products/:id/image", async (req, res) => {
-  const payload = requireAdmin(req, res);
-  if (!payload) return;
-
   const id = typeof req.params.id === "string" ? req.params.id.trim() : "";
   if (!id) {
     res.status(400).end();

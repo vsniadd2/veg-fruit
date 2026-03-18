@@ -18,10 +18,70 @@ type Product = {
   name: string;
   country: string;
   price: string | number | null;
-  imageUrl: string;
+  imageUrl: string | null;
   categoryId: string | null;
   categoryName: string | null;
 };
+
+const imageObjectUrlCache = new Map<string, string>();
+
+function AdminProductImage(props: { src: string | null; alt: string; className?: string }) {
+  const { src, alt, className } = props;
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  const resolvedSrc = src
+    ? src.startsWith("http://") || src.startsWith("https://")
+      ? src
+      : `${API_BASE_URL}${src}`
+    : null;
+
+  useEffect(() => {
+    if (!resolvedSrc) {
+      setObjectUrl(null);
+      return;
+    }
+
+    const cached = imageObjectUrlCache.get(resolvedSrc);
+    if (cached) {
+      setObjectUrl(cached);
+      return;
+    }
+
+    const token = getToken(ACCESS_TOKEN_KEY);
+    if (!token) {
+      // Fallback: попробуем загрузить как есть (вдруг endpoint публичный).
+      setObjectUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch(resolvedSrc, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`http_${res.status}`);
+        const blob = await res.blob();
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        imageObjectUrlCache.set(resolvedSrc, url);
+        setObjectUrl(url);
+      } catch {
+        if (cancelled) return;
+        setObjectUrl(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedSrc]);
+
+  if (!resolvedSrc) return null;
+
+  return <img alt={alt} className={className} src={objectUrl ?? resolvedSrc} />;
+}
 
 function IconLeaf(props: { className?: string }) {
   return (
@@ -1019,20 +1079,16 @@ export default function Admin() {
                           return;
                         }
 
-                        if (!newProductImageFile) {
-                          // Сообщение не показываем (по запросу пользователя) — показывать будем только ошибку,
-                          // связанную с превышением 5 МБ.
-                          return;
-                        }
+                        if (newProductImageFile) {
+                          if (newProductImageFile.size > 5 * 1024 * 1024) {
+                            setError("Файл слишком большой. Максимум 5 МБ.");
+                            return;
+                          }
 
-                        if (newProductImageFile.size > 5 * 1024 * 1024) {
-                          setError("Файл слишком большой. Максимум 5 МБ.");
-                          return;
-                        }
-
-                        if (!newProductImageFile.type.startsWith("image/")) {
-                          setError("Можно загрузить только изображение.");
-                          return;
+                          if (!newProductImageFile.type.startsWith("image/")) {
+                            setError("Можно загрузить только изображение.");
+                            return;
+                          }
                         }
 
                         setIsSavingProduct(true);
@@ -1042,7 +1098,7 @@ export default function Admin() {
                           form.append("country", country);
                           if (price) form.append("price", price);
                           if (categoryId) form.append("categoryId", categoryId);
-                          form.append("image", newProductImageFile);
+                          if (newProductImageFile) form.append("image", newProductImageFile);
 
                           await adminFetchJson<Product>("/api/products", {
                             method: "POST",
@@ -1125,7 +1181,7 @@ export default function Admin() {
                         </div>
                       </div>
                       <div className="space-y-4">
-                        <label className="block text-sm font-medium mb-1.5">Фото товара</label>
+                        <label className="block text-sm font-medium mb-1.5">Фото товара (необязательно)</label>
                         <label className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl h-48 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group overflow-hidden">
                           <input
                             accept="image/*"
@@ -1190,7 +1246,17 @@ export default function Admin() {
                                   <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                        <img alt={p.name} className="w-full h-full object-cover" src={p.imageUrl} />
+                                        {p.imageUrl ? (
+                                          <AdminProductImage
+                                            src={p.imageUrl}
+                                            alt={p.name}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800">
+                                            Без фото
+                                          </div>
+                                        )}
                                       </div>
                                       <span className="font-medium text-sm">{p.name}</span>
                                     </div>
@@ -1515,7 +1581,17 @@ export default function Admin() {
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                      <img alt={p.name} className="w-full h-full object-cover" src={p.imageUrl} />
+                                      {p.imageUrl ? (
+                                        <AdminProductImage
+                                          src={p.imageUrl}
+                                          alt={p.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800">
+                                          Без фото
+                                        </div>
+                                      )}
                                     </div>
                                     <span className="font-medium text-sm">{p.name}</span>
                                   </div>
