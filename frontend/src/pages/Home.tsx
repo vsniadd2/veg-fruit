@@ -22,7 +22,7 @@ export default function Home() {
     () => [
       {
         id: "anna",
-        text: '“Качество продуктов просто потрясающее! Овощи пахнут землей и летом, а не пластиком, как в супермаркетах. Доставка приехала за 45 минут.”',
+        text: '“Качество продуктов просто потрясающее! Овощи сочные и ароматные — не как в пластиковой упаковке из супермаркета. Доставка приехала за 45 минут.”',
         name: "Анна К.",
         subtitle: "Постоянный клиент",
         avatarText: "АК",
@@ -177,22 +177,23 @@ export default function Home() {
     <>
       <Header />
 
-      <main>
+      <main className="overflow-x-hidden">
         {/* BEGIN: Hero Section */}
         <section className="relative overflow-hidden bg-green-50 py-12 sm:py-16 lg:py-24">
           <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center">
             <div className="lg:w-1/2 z-10">
               <span className="inline-block bg-green-100 text-forest-green px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-6">
-                Собрано сегодня, доставлено сегодня
+                Свежие фрукты и овощи · круглый год
               </span>
               <h1
                 className="heading-serif text-4xl sm:text-5xl lg:text-7xl text-forest-green leading-tight mb-6"
                 data-reveal
               >
-                Свежесть с <span className="italic text-leaf-green">доставкой</span> до вашей двери
+                Свежие фрукты и овощи{" "}
+                <span className="italic text-leaf-green">круглый год</span> — с доставкой до вашей двери
               </h1>
               <p className="text-lg text-gray-600 mb-8 max-w-lg" data-reveal>
-                Почувствуйте вкус фермерских органических продуктов. Мы сокращаем путь от грядки до вашего стола.
+                Удобный заказ из каталога и доставка в удобное время — чтобы на вашем столе всегда было то, что вы любите.
               </p>
               <div className="flex flex-col sm:flex-row flex-wrap gap-4" data-reveal>
                 <button className="bg-leaf-green hover:bg-forest-green text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto">
@@ -216,7 +217,7 @@ export default function Home() {
                 />
               </div>
               {/* Rating Floating Card */}
-              <div className="absolute -bottom-5 left-4 sm:-bottom-6 sm:-left-6 bg-white p-4 rounded-2xl shadow-xl flex items-center space-x-4">
+              <div className="absolute -bottom-5 left-3 right-3 sm:left-auto sm:right-auto sm:-bottom-6 sm:-left-6 sm:max-w-none max-w-full bg-white p-3 sm:p-4 rounded-2xl shadow-xl flex items-center gap-3 sm:space-x-4">
                 <div className="bg-orange-100 p-2 rounded-full">
                   <svg className="w-6 h-6 text-vibrant-orange" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -245,9 +246,9 @@ export default function Home() {
                   <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                 </svg>
               </div>
-              <h3 className="font-bold text-lg text-forest-green mb-2">100% Органично</h3>
+              <h3 className="font-bold text-lg text-forest-green mb-2">Контроль качества</h3>
               <p className="text-sm text-gray-500 leading-relaxed">
-                Сертифицированные методы выращивания без пестицидов и ГМО.
+                Следим за свежестью и условиями хранения — вы получаете то, что заказали.
               </p>
             </div>
             {/* Feature 2 */}
@@ -271,9 +272,9 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <h3 className="font-bold text-lg text-forest-green mb-2">Местные фермеры</h3>
+              <h3 className="font-bold text-lg text-forest-green mb-2">Стабильные поставки</h3>
               <p className="text-sm text-gray-500 leading-relaxed">
-                Поддержка малых семейных ферм в радиусе 80 км от вас.
+                Работаем с проверенными поставщиками и выстроенной логистикой — ассортимент доступен регулярно.
               </p>
             </div>
             {/* Feature 3 */}
@@ -291,9 +292,9 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <h3 className="font-bold text-lg text-forest-green mb-2">Доставка в тот же день</h3>
+              <h3 className="font-bold text-lg text-forest-green mb-2">Доставка в удобное время</h3>
               <p className="text-sm text-gray-500 leading-relaxed">
-                Урожай, собранный на рассвете, будет на вашем столе к ужину.
+                Оформите заказ заранее — привезём в выбранный интервал, когда вам удобно.
               </p>
             </div>
           </div>
@@ -307,7 +308,7 @@ export default function Home() {
               <div>
                 <h2 className="text-4xl font-bold text-forest-green mb-4">Категории товаров</h2>
                 <p className="text-gray-500">
-                  Лучшие фермерские продукты, отобранные вручную для вашего здоровья.
+                  Свежие фрукты и овощи — подобрали категории так, чтобы было проще выбрать нужное.
                 </p>
               </div>
               <Link className="text-leaf-green font-bold flex items-center hover:text-forest-green transition-colors" to="/catalog">
@@ -382,7 +383,7 @@ export default function Home() {
               Как мы работаем
             </h2>
             <p className="text-gray-500 mb-16 max-w-2xl mx-auto" data-reveal>
-              Простой и прозрачный процесс доставки от фермы до вашей двери.
+              Простой и прозрачный путь: заказ на сайте — сборка — доставка до вашей двери.
             </p>
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center relative">
               <div className="hidden lg:block absolute top-1/2 left-0 w-full h-0.5 border-t-2 border-dashed border-leaf-green/30 -z-0" />
@@ -580,7 +581,7 @@ export default function Home() {
                     />
                   </svg>
                 </div>
-                <span className="text-xl font-bold text-forest-green uppercase">GreenHarvest</span>
+                <span className="text-xl font-bold text-forest-green">Садовка</span>
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
@@ -633,7 +634,7 @@ export default function Home() {
                 </li>
                 <li>
                   <a className="hover:text-vibrant-orange" href="#">
-                    Наши фермеры
+                    Поставщики и качество
                   </a>
                 </li>
                 <li>
@@ -688,14 +689,14 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
-            <p>© 2026 Зелёный Сад (GreenHarvest). Все права защищены.</p>
+            <p>© 2026 Садовка. Все права защищены.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
-              <a className="hover:text-forest-green" href="#">
+              <Link className="hover:text-forest-green" to="/privacy">
                 Политика конфиденциальности
-              </a>
-              <a className="hover:text-forest-green" href="#">
+              </Link>
+              <Link className="hover:text-forest-green" to="/offer">
                 Оферта
-              </a>
+              </Link>
             </div>
           </div>
         </div>

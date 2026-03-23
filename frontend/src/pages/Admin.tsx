@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { AdminSuppliers } from "./admin/AdminSuppliers";
+
 const AUTH_KEY = "gh_admin_authed_v1";
 const ACCESS_TOKEN_KEY = "gh_admin_access_token_v1";
 const REFRESH_TOKEN_KEY = "gh_admin_refresh_token_v1";
@@ -10,6 +12,14 @@ const ACTIVE_TAB_KEY = "gh_admin_active_tab_v1";
 const CATALOG_CATEGORY_ID_KEY = "gh_admin_catalog_category_id_v1";
 
 type AdminTab = "dashboard" | "catalog" | "orders" | "suppliers" | "reports";
+
+const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
+  dashboard: "Панель",
+  catalog: "Каталог",
+  orders: "Заказы",
+  suppliers: "Поставщики",
+  reports: "Отчёты",
+};
 
 type Category = { id: string; name: string };
 
@@ -21,6 +31,8 @@ type Product = {
   imageUrl: string | null;
   categoryId: string | null;
   categoryName: string | null;
+  inStock?: boolean;
+  badge?: { kind: string; label: string } | null;
 };
 
 const imageObjectUrlCache = new Map<string, string>();
@@ -355,6 +367,26 @@ function setToken(key: string, value: string | null) {
   }
 }
 
+function decodeJwtPayload(token: string): { exp?: number } | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const json = atob(padded);
+    return JSON.parse(json) as { exp?: number };
+  } catch {
+    return null;
+  }
+}
+
+/** Подсказка по сроку без проверки подписи — чтобы не дергать /verify с истёкшим токеном (лишний 401 в консоли). */
+function isAccessTokenExpired(token: string): boolean {
+  const p = decodeJwtPayload(token);
+  if (!p || typeof p.exp !== "number") return true;
+  return p.exp * 1000 <= Date.now();
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const [isAuthed, setIsAuthed] = useState(getIsAuthed);
@@ -373,6 +405,7 @@ export default function Admin() {
   const [highlightCategoryId, setHighlightCategoryId] = useState<string | null>(null);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchCategories, setSearchCategories] = useState<Category[]>([]);
@@ -393,7 +426,20 @@ export default function Admin() {
   const [newProductPrice, setNewProductPrice] = useState("");
   const [newProductImageFile, setNewProductImageFile] = useState<File | null>(null);
   const [newProductImagePreviewUrl, setNewProductImagePreviewUrl] = useState<string | null>(null);
+  const [newProductSeasonal, setNewProductSeasonal] = useState(false);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editProductName, setEditProductName] = useState("");
+  const [editProductCountry, setEditProductCountry] = useState("");
+  const [editProductPrice, setEditProductPrice] = useState("");
+  const [editProductCategoryId, setEditProductCategoryId] = useState("");
+  const [editProductSeasonal, setEditProductSeasonal] = useState(false);
+  const [editProductInStock, setEditProductInStock] = useState(true);
+  const [isSavingProductEdit, setIsSavingProductEdit] = useState(false);
+
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   const profileImageUrl = useMemo(
     () =>
@@ -482,6 +528,32 @@ export default function Admin() {
     throw new Error("unauthorized");
   };
 
+  const authorizedFetch = async (path: string, init?: RequestInit): Promise<Response> => {
+    const accessToken = getToken(ACCESS_TOKEN_KEY);
+    if (!accessToken) throw new Error("missing_access_token");
+
+    const doRequest = async (token: string) => {
+      const headers = new Headers(init?.headers ?? {});
+      headers.set("Authorization", `Bearer ${token}`);
+      return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    };
+
+    let res = await doRequest(accessToken);
+    if (res.status !== 401) return res;
+
+    const next = await refreshAccessToken();
+    if (!next) {
+      doLogout();
+      throw new Error("unauthorized");
+    }
+    res = await doRequest(next);
+    if (res.status === 401) {
+      doLogout();
+      throw new Error("unauthorized");
+    }
+    return res;
+  };
+
   const loadCategories = async () => {
     const data = await adminFetchJson<{ ok: boolean; items: Category[] }>("/api/categories");
     setCategories(data.items);
@@ -529,6 +601,77 @@ export default function Admin() {
       setCatalogProducts(data.items ?? []);
     } finally {
       setIsLoadingCatalog(false);
+    }
+  };
+
+  const openProductEdit = (p: Product) => {
+    setError(null);
+    setEditingProduct(p);
+    setEditProductName(p.name);
+    setEditProductCountry(p.country);
+    setEditProductPrice(p.price === null || p.price === undefined || p.price === "" ? "" : String(p.price));
+    setEditProductCategoryId(p.categoryId ?? "");
+    setEditProductSeasonal(p.badge?.kind === "seasonal");
+    setEditProductInStock(p.inStock !== false);
+  };
+
+  const saveProductEdit = async () => {
+    if (!editingProduct) return;
+    const name = editProductName.trim();
+    const country = editProductCountry.trim();
+    if (!name || !country) {
+      setError("Заполните название и страну.");
+      return;
+    }
+    setIsSavingProductEdit(true);
+    setError(null);
+    try {
+      const categoryId = editProductCategoryId.trim() || null;
+      const priceStr = editProductPrice.trim();
+      const body: Record<string, unknown> = {
+        name,
+        country,
+        categoryId,
+        price: priceStr ? Number.parseFloat(priceStr) : null,
+        inStock: editProductInStock,
+      };
+      if (editProductSeasonal) {
+        body.badgeKind = "seasonal";
+        body.badgeLabel = "СЕЗОННОЕ";
+      } else {
+        body.badgeKind = null;
+        body.badgeLabel = null;
+      }
+      await adminFetchJson<Product>(`/api/products/${encodeURIComponent(editingProduct.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setEditingProduct(null);
+      await loadRecentProducts();
+      await loadCatalogProducts(catalogCategoryId || undefined);
+    } catch {
+      setError("Не удалось сохранить товар.");
+    } finally {
+      setIsSavingProductEdit(false);
+    }
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deletingProductId) return;
+    setIsDeletingProduct(true);
+    setError(null);
+    try {
+      await adminFetchJson<{ ok: boolean }>(`/api/products/${encodeURIComponent(deletingProductId)}`, {
+        method: "DELETE",
+      });
+      setDeletingProductId(null);
+      await loadRecentProducts();
+      await loadCatalogProducts(catalogCategoryId || undefined);
+    } catch {
+      setError("Не удалось удалить товар.");
+    } finally {
+      setIsDeletingProduct(false);
     }
   };
 
@@ -659,7 +802,7 @@ export default function Admin() {
         const accessToken = getToken(ACCESS_TOKEN_KEY);
         const refreshToken = getToken(REFRESH_TOKEN_KEY);
 
-        if (accessToken && (await verify(accessToken))) {
+        if (accessToken && !isAccessTokenExpired(accessToken) && (await verify(accessToken))) {
           if (cancelled) return;
           setAuthed(true);
           setIsAuthed(true);
@@ -668,7 +811,7 @@ export default function Admin() {
 
         if (refreshToken) {
           const nextAccess = await refresh(refreshToken);
-          if (nextAccess && (await verify(nextAccess))) {
+          if (nextAccess) {
             if (cancelled) return;
             setToken(ACCESS_TOKEN_KEY, nextAccess);
             setAuthed(true);
@@ -706,7 +849,7 @@ export default function Admin() {
                   <IconLeaf className="w-5 h-5" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold tracking-tight">Админ-панель GreenHarvest</h1>
+                  <h1 className="text-lg font-bold tracking-tight">Админ-панель Садовка</h1>
                   <p className="text-sm text-slate-500">Введите логин и пароль</p>
                 </div>
               </div>
@@ -813,7 +956,7 @@ export default function Admin() {
               <div className="bg-primary p-2 rounded-lg text-white">
                 <IconLeaf className="w-5 h-5" />
               </div>
-              <h1 className="text-xl font-bold tracking-tight text-primary">GreenHarvest</h1>
+              <h1 className="text-xl font-bold tracking-tight text-primary">Садовка</h1>
             </div>
             <nav className="flex-1 px-4 space-y-1">
               <a
@@ -900,32 +1043,158 @@ export default function Admin() {
             </div>
           </aside>
 
-          {/* Main Content */}
-          <main className="flex-1 overflow-y-auto">
-            <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-background-dark/80 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-8">
-              <h2 className="text-lg font-semibold">Управление товарами</h2>
-              <div className="flex items-center gap-4">
+          {mobileNavOpen ? (
+            <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Разделы админки">
+              <button
+                className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+                type="button"
+                aria-label="Закрыть меню"
+                onClick={() => setMobileNavOpen(false)}
+              />
+              <nav className="absolute left-0 top-0 bottom-0 flex h-full w-[min(20rem,92vw)] flex-col gap-1 overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-background-dark">
+                <div className="mb-2 flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+                  <div className="rounded-lg bg-primary p-2 text-white">
+                    <IconLeaf className="h-5 w-5" />
+                  </div>
+                  <span className="font-bold text-primary">Меню</span>
+                </div>
+                <a
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
+                    activeTab === "dashboard" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                  ].join(" ")}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab("dashboard");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <IconGrid className="h-5 w-5" />
+                  <span className="text-sm font-medium">Панель</span>
+                </a>
+                <a
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
+                    activeTab === "catalog" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                  ].join(" ")}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab("catalog");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <IconBox className="h-5 w-5" />
+                  <span className="text-sm font-medium">Каталог</span>
+                </a>
+                <a
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
+                    activeTab === "orders" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                  ].join(" ")}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab("orders");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <IconCart className="h-5 w-5" />
+                  <span className="text-sm font-medium">Заказы</span>
+                </a>
+                <a
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
+                    activeTab === "suppliers" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                  ].join(" ")}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab("suppliers");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <IconUsers className="h-5 w-5" />
+                  <span className="text-sm font-medium">Поставщики</span>
+                </a>
+                <a
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
+                    activeTab === "reports" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                  ].join(" ")}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab("reports");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <IconChart className="h-5 w-5" />
+                  <span className="text-sm font-medium">Отчёты</span>
+                </a>
                 <button
-                  className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+                  className="mt-auto flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                  type="button"
                   onClick={() => {
+                    setMobileNavOpen(false);
+                    doLogout();
+                  }}
+                >
+                  <IconLogout className="h-5 w-5" />
+                  <span className="text-sm font-semibold">Выйти</span>
+                </button>
+              </nav>
+            </div>
+          ) : null}
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-sm dark:border-slate-800 dark:bg-background-dark/80 sm:px-6 lg:px-8">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <button
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
+                  type="button"
+                  aria-label="Открыть меню разделов"
+                  onClick={() => setMobileNavOpen(true)}
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                  </svg>
+                </button>
+                <h2 className="truncate text-base font-semibold sm:text-lg">{ADMIN_TAB_LABELS[activeTab]}</h2>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+                <button
+                  className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  onClick={() => {
+                    setMobileNavOpen(false);
                     setIsSearchOpen(true);
                     setSearchQuery("");
                   }}
                   type="button"
                 >
-                  <IconSearch className="w-5 h-5" />
+                  <IconSearch className="h-5 w-5" />
                 </button>
-                <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full relative">
-                  <IconBell className="w-5 h-5" />
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900" />
+                <button className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <IconBell className="h-5 w-5" />
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500 dark:border-slate-900" />
                 </button>
                 <button
-                  className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="hidden items-center gap-2 rounded-xl px-3 py-2 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 sm:flex"
                   onClick={doLogout}
                   type="button"
                 >
-                  <IconLogout className="w-5 h-5" />
+                  <IconLogout className="h-5 w-5" />
                   <span className="text-sm font-semibold">Выйти</span>
+                </button>
+                <button
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 sm:hidden"
+                  type="button"
+                  aria-label="Выйти"
+                  onClick={doLogout}
+                >
+                  <IconLogout className="h-5 w-5" />
                 </button>
               </div>
             </header>
@@ -1047,7 +1316,7 @@ export default function Admin() {
               </div>
             ) : null}
 
-            <div className="p-8 max-w-6xl mx-auto space-y-8">
+            <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
               {activeTab === "dashboard" ? (
                 <>
                   {/* Add Product Section */}
@@ -1099,6 +1368,10 @@ export default function Admin() {
                           if (price) form.append("price", price);
                           if (categoryId) form.append("categoryId", categoryId);
                           if (newProductImageFile) form.append("image", newProductImageFile);
+                          if (newProductSeasonal) {
+                            form.append("badgeKind", "seasonal");
+                            form.append("badgeLabel", "СЕЗОННОЕ");
+                          }
 
                           await adminFetchJson<Product>("/api/products", {
                             method: "POST",
@@ -1109,6 +1382,7 @@ export default function Admin() {
                           setNewProductCountry("");
                           setNewProductPrice("");
                           setNewProductImageFile(null);
+                          setNewProductSeasonal(false);
                           await loadRecentProducts();
                         } catch {
                           setError("Не удалось сохранить товар. Проверьте сервер и попробуйте ещё раз.");
@@ -1169,6 +1443,15 @@ export default function Admin() {
                             onChange={(e) => setNewProductPrice(e.target.value)}
                           />
                         </div>
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            checked={newProductSeasonal}
+                            className="rounded border-slate-300 text-primary focus:ring-primary"
+                            onChange={(e) => setNewProductSeasonal(e.target.checked)}
+                            type="checkbox"
+                          />
+                          <span className="text-sm font-medium">Сезонный товар</span>
+                        </label>
                         <div className="pt-2">
                           <button
                             className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
@@ -1258,7 +1541,14 @@ export default function Admin() {
                                           </div>
                                         )}
                                       </div>
-                                      <span className="font-medium text-sm">{p.name}</span>
+                                      <div className="flex flex-col gap-0.5 min-w-0">
+                                        <span className="font-medium text-sm">{p.name}</span>
+                                        {p.badge?.kind === "seasonal" ? (
+                                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                                            Сезонное
+                                          </span>
+                                        ) : null}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="px-6 py-4">
@@ -1275,18 +1565,32 @@ export default function Admin() {
                                     {p.price === null || p.price === undefined || p.price === "" ? "—" : String(p.price)}
                                   </td>
                                   <td className="px-6 py-4">
-                                    <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                      В наличии
-                                    </div>
+                                    {p.inStock !== false ? (
+                                      <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                        В наличии
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                        Нет в наличии
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="px-6 py-4 text-right">
-                                    <button className="p-1.5 text-slate-400 hover:text-primary transition-colors" type="button">
+                                    <button
+                                      className="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                                      type="button"
+                                      aria-label="Редактировать товар"
+                                      onClick={() => openProductEdit(p)}
+                                    >
                                       <IconPencil className="w-5 h-5" />
                                     </button>
                                     <button
                                       className="p-1.5 text-slate-400 hover:text-red-500 transition-colors ml-2"
                                       type="button"
+                                      aria-label="Удалить товар"
+                                      onClick={() => setDeletingProductId(p.id)}
                                     >
                                       <IconTrash className="w-5 h-5" />
                                     </button>
@@ -1305,6 +1609,141 @@ export default function Admin() {
                       </div>
                     </div>
                   </section>
+
+                  {editingProduct ? (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                      <div
+                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
+                        onClick={() => setEditingProduct(null)}
+                        role="button"
+                        tabIndex={-1}
+                      />
+                      <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+                          <h4 className="text-lg font-bold">Редактировать товар</h4>
+                          <p className="text-sm text-slate-500">Название, страна, цена, категория, наличие и сезонность.</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Название</label>
+                            <input
+                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                              value={editProductName}
+                              onChange={(e) => setEditProductName(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Категория</label>
+                            <select
+                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                              value={editProductCategoryId}
+                              onChange={(e) => setEditProductCategoryId(e.target.value)}
+                            >
+                              <option value="">Без категории</option>
+                              {categories.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Страна</label>
+                            <input
+                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                              value={editProductCountry}
+                              onChange={(e) => setEditProductCountry(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Цена</label>
+                            <input
+                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                              step="0.01"
+                              type="number"
+                              value={editProductPrice}
+                              onChange={(e) => setEditProductPrice(e.target.value)}
+                            />
+                          </div>
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <input
+                              checked={editProductInStock}
+                              className="rounded border-slate-300 text-primary focus:ring-primary"
+                              onChange={(e) => setEditProductInStock(e.target.checked)}
+                              type="checkbox"
+                            />
+                            <span className="text-sm font-medium">В наличии</span>
+                          </label>
+                          <p className="text-xs text-slate-500">
+                            Снимите галочку, чтобы отметить товар как отсутствующий (в таблице будет красная подсветка).
+                          </p>
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <input
+                              checked={editProductSeasonal}
+                              className="rounded border-slate-300 text-primary focus:ring-primary"
+                              onChange={(e) => setEditProductSeasonal(e.target.checked)}
+                              type="checkbox"
+                            />
+                            <span className="text-sm font-medium">Сезонный товар</span>
+                          </label>
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
+                              disabled={isSavingProductEdit}
+                              onClick={() => void saveProductEdit()}
+                              type="button"
+                            >
+                              {isSavingProductEdit ? "Сохранение..." : "Сохранить"}
+                            </button>
+                            <button
+                              className="flex-1 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-colors"
+                              onClick={() => setEditingProduct(null)}
+                              type="button"
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {deletingProductId ? (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                      <div
+                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
+                        onClick={() => setDeletingProductId(null)}
+                        role="button"
+                        tabIndex={-1}
+                      />
+                      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+                          <h4 className="text-lg font-bold">Удалить товар?</h4>
+                          <p className="text-sm text-slate-500">
+                            {recentProducts.find((x) => x.id === deletingProductId)?.name ?? "Товар"} будет удалён без
+                            восстановления.
+                          </p>
+                        </div>
+                        <div className="p-6 flex gap-2">
+                          <button
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
+                            disabled={isDeletingProduct}
+                            onClick={() => void confirmDeleteProduct()}
+                            type="button"
+                          >
+                            {isDeletingProduct ? "Удаление..." : "Удалить"}
+                          </button>
+                          <button
+                            className="flex-1 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-colors"
+                            onClick={() => setDeletingProductId(null)}
+                            type="button"
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               ) : activeTab === "catalog" ? (
                 <div className="space-y-6">
@@ -1563,6 +2002,7 @@ export default function Admin() {
                             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Категория</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Страна</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Цена</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Наличие</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1603,11 +2043,18 @@ export default function Admin() {
                                 <td className="px-6 py-4 text-sm font-semibold">
                                   {p.price === null || p.price === undefined || p.price === "" ? "—" : String(p.price)}
                                 </td>
+                                <td className="px-6 py-4 text-xs">
+                                  {p.inStock !== false ? (
+                                    <span className="text-primary font-medium">В наличии</span>
+                                  ) : (
+                                    <span className="text-red-600 dark:text-red-400 font-medium">Нет в наличии</span>
+                                  )}
+                                </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td className="px-6 py-8 text-sm text-slate-500" colSpan={4}>
+                              <td className="px-6 py-8 text-sm text-slate-500" colSpan={5}>
                                 Товары не найдены.
                               </td>
                             </tr>
@@ -1617,12 +2064,12 @@ export default function Admin() {
                     </div>
                   </section>
                 </div>
+              ) : activeTab === "suppliers" ? (
+                <AdminSuppliers adminFetchJson={adminFetchJson} setError={setError} />
               ) : (
                 <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                   <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-xl font-bold">
-                      {activeTab === "orders" ? "Заказы" : activeTab === "suppliers" ? "Поставщики" : "Отчёты"}
-                    </h3>
+                    <h3 className="text-xl font-bold">{activeTab === "orders" ? "Заказы" : "Отчёты"}</h3>
                     <p className="text-slate-500 text-sm">Раздел в разработке.</p>
                   </div>
                   <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Здесь будет контент выбранного раздела.</div>

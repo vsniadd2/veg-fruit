@@ -9,6 +9,11 @@ html {
   scrollbar-color: #0a4a34 #f3f4f6; /* thumb / track */
 }
 
+/* Предотвращаем горизонтальный скролл из-за широких блоков на узких экранах */
+body {
+  overflow-x: clip;
+}
+
 /* WebKit scrollbars */
 ::-webkit-scrollbar {
   width: 12px;

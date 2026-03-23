@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+
 import Header from "../components/Header";
 
 type ProductBadge =
   | { kind: "seasonal"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" }
-  | { kind: "hit"; label: string; className: "bg-[#f3722c] text-white" }
+  | { kind: "hit"; label: string; className: "bg-primary text-white" }
   | { kind: "organic"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
 
 type Product = {
@@ -15,6 +17,12 @@ type Product = {
   categoryName?: string | null; // for convenience in UI
   badge?: ProductBadge;
 };
+
+const CATALOG_IMAGE_PLACEHOLDER =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="512" viewBox="0 0 800 512"><rect fill="#f3f4f6" width="800" height="512"/><text x="400" y="256" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-family="system-ui,sans-serif" font-size="18">Нет фото</text></svg>`,
+  );
 
 export default function Catalog() {
   const API_BASE_URL = "http://localhost:3001";
@@ -79,7 +87,7 @@ export default function Catalog() {
               return { kind: "seasonal", label: label || "СЕЗОННОЕ", className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
             }
             if (kind === "hit") {
-              return { kind: "hit", label: label || "ХИТ", className: "bg-[#f3722c] text-white" };
+              return { kind: "hit", label: label || "ХИТ", className: "bg-primary text-white" };
             }
             if (kind === "organic") {
               return { kind: "organic", label: label || "ОРГАНИК", className: "bg-white/90 backdrop-blur text-[#2d6a4f]" };
@@ -141,7 +149,7 @@ export default function Catalog() {
         category: "fruits",
         imageUrl:
           "https://lh3.googleusercontent.com/aida-public/AB6AXuAhfC1ekrSFGxXUtU79rm-R0x6k7poYE8P_frP6wf7nFkhoy8NiXz-XC2Lf8olmX_ZuClLgDKwGiUlXyjKc1wTHCisXZl4wybIU0ijVCMt_Ed518KshpHcWCmkOXJH__nboBvdZ0e7dGO2HwdoLqFl71wi2i0jFIxmlU_uNfvUithlQk07u7YF-j6zCxQvsjPx67qRkW_a0ziWgQJsiJEP6bYSHcTpml0s3TTjZEdIQyOx8wDBuxXuslmDndokKkwjKvBvmg8UTkKQ8",
-        badge: { kind: "hit", label: "ХИТ", className: "bg-[#f3722c] text-white" },
+        badge: { kind: "hit", label: "ХИТ", className: "bg-primary text-white" },
       },
       {
         id: "carrot",
@@ -263,10 +271,10 @@ export default function Catalog() {
       {/* BEGIN: PageTitle Section */}
       <section className="bg-gray-50 py-12">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">Наш каталог</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Самые свежие овощи, фрукты и зелень, выращенные с любовью нашими фермерами. Мы гарантируем качество каждого
-            плода.
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 px-1">Наш каталог</h1>
+          <p className="text-gray-600 max-w-2xl mx-auto px-1 text-sm sm:text-base">
+            Свежие овощи, фрукты и зелень круглый год — с доставкой. Подбираем ассортимент так, чтобы вам было проще
+            заказать нужное.
           </p>
         </div>
       </section>
@@ -322,10 +330,11 @@ export default function Catalog() {
 
           {/* Product Grid */}
           <section className="flex-grow" data-purpose="product-grid-section">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-gray-500">
-                  Найдено: {filteredProducts.length} товара(ов) в категории "{categoriesToShow.find((c) => c.id === category)?.label ?? ""}"
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
+              <div className="flex min-w-0 flex-col gap-2">
+                <p className="text-sm text-gray-500 break-words">
+                  Найдено: {filteredProducts.length} товара(ов) в категории «
+                  {categoriesToShow.find((c) => c.id === category)?.label ?? ""}»
                 </p>
                 <div className="max-w-md">
                   <input
@@ -341,32 +350,21 @@ export default function Catalog() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Сортировать:</span>
-                <div className="relative">
-                  <select
-                    className="sort-select appearance-none bg-white border border-gray-200 hover:border-gray-300 text-sm font-semibold rounded-2xl px-5 py-2.5 pr-12 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]/30 focus:border-transparent transition-colors"
-                    value={sort}
-                    onChange={(e) => {
-                      const value = e.target.value as typeof sort;
-                      setSort(value);
-                      setPage(1);
-                    }}
-                  >
-                    <option value="default">По умолчанию</option>
-                    <option value="name">По названию</option>
-                    <option value="season">По сезону</option>
-                  </select>
-                  <svg
-                    aria-hidden="true"
-                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                  </svg>
-                </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="text-sm text-gray-600 shrink-0">Сортировать:</span>
+                <select
+                  className="sort-select min-w-0 flex-1 sm:flex-initial sm:min-w-[12rem] w-full sm:w-auto appearance-none bg-white border border-gray-200 hover:border-gray-300 text-sm font-semibold rounded-2xl px-5 py-2.5 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]/30 focus:border-transparent transition-colors"
+                  value={sort}
+                  onChange={(e) => {
+                    const value = e.target.value as typeof sort;
+                    setSort(value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="default">По умолчанию</option>
+                  <option value="name">По названию</option>
+                  <option value="season">По сезону</option>
+                </select>
               </div>
             </div>
 
@@ -381,7 +379,7 @@ export default function Catalog() {
                       alt={p.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       loading="lazy"
-                      src={p.imageUrl}
+                      src={p.imageUrl || CATALOG_IMAGE_PLACEHOLDER}
                     />
                     {p.badge ? (
                       <span
@@ -406,9 +404,9 @@ export default function Catalog() {
             </div>
           </section>
 
-          <div className="mt-16 w-full lg:col-span-2 flex flex-wrap justify-center items-center gap-2">
+          <div className="mt-16 w-full lg:col-span-2 flex max-w-full flex-nowrap justify-start items-center gap-1 sm:justify-center sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
             <button
-              className="w-10 h-10 rounded-lg hover:bg-gray-100 font-bold disabled:opacity-40"
+              className="w-10 h-10 shrink-0 rounded-lg hover:bg-gray-100 font-bold disabled:opacity-40"
               disabled={currentPage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -422,7 +420,7 @@ export default function Catalog() {
                 <button
                   key={n}
                   className={[
-                    "w-10 h-10 rounded-lg font-bold",
+                    "w-10 h-10 shrink-0 rounded-lg font-bold",
                     isActive ? "bg-[#2d6a4f] text-white" : "hover:bg-gray-100",
                   ].join(" ")}
                   onClick={() => setPage(n)}
@@ -433,7 +431,7 @@ export default function Catalog() {
               );
             })}
             <button
-              className="w-10 h-10 rounded-lg hover:bg-gray-100 font-bold disabled:opacity-40"
+              className="w-10 h-10 shrink-0 rounded-lg hover:bg-gray-100 font-bold disabled:opacity-40"
               disabled={currentPage >= pageCount}
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
               type="button"
@@ -455,12 +453,12 @@ export default function Catalog() {
             <p className="text-green-100 mb-10 text-lg">Подпишитесь на нашу рассылку и получите скидку 10% на ваш первый заказ!</p>
             <form className="flex flex-col md:flex-row gap-4">
               <input
-                className="flex-grow px-6 py-4 rounded-xl focus:ring-2 focus:ring-[#f3722c] border-none text-gray-800"
+                className="flex-grow px-6 py-4 rounded-xl focus:ring-2 focus:ring-primary border-none text-gray-800"
                 placeholder="Ваш e-mail"
                 type="email"
               />
               <button
-                className="bg-[#f3722c] text-white px-10 py-4 rounded-xl font-bold hover:bg-orange-600 transition-colors whitespace-nowrap"
+                className="bg-primary text-white px-10 py-4 rounded-xl font-bold hover:bg-forest-green transition-colors whitespace-nowrap"
                 type="submit"
               >
                 Подписаться
@@ -478,9 +476,9 @@ export default function Catalog() {
             <div>
               <div className="flex items-center space-x-2 mb-6">
                 <div className="w-8 h-8 bg-[#2d6a4f] rounded flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">G</span>
+                  <span className="text-white font-bold text-xl">С</span>
                 </div>
-                <span className="font-bold text-xl tracking-tight uppercase">GREENHARVEST</span>
+                <span className="font-bold text-xl tracking-tight">Садовка</span>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed mb-6">
                 Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
@@ -541,7 +539,7 @@ export default function Catalog() {
                 </li>
                 <li>
                   <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Наши фермеры
+                    Поставщики и качество
                   </a>
                 </li>
                 <li>
@@ -598,14 +596,14 @@ export default function Catalog() {
           </div>
 
           <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 space-y-4 md:space-y-0">
-            <p>© 2026 Зелёный Сад (GreenHarvest). Все права защищены.</p>
+            <p>© 2026 Садовка. Все права защищены.</p>
             <div className="flex space-x-6">
-              <a className="hover:text-[#52b788]" href="#">
+              <Link className="hover:text-[#52b788]" to="/privacy">
                 Политика конфиденциальности
-              </a>
-              <a className="hover:text-[#52b788]" href="#">
+              </Link>
+              <Link className="hover:text-[#52b788]" to="/offer">
                 Оферта
-              </a>
+              </Link>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 
 import { initDb, pool } from "./db.js";
+import { registerSuppliersAdminRoutes } from "./suppliersAdminRoutes.js";
 
 const app = express();
 
@@ -292,7 +293,7 @@ app.get("/api/products", async (req, res) => {
     const total = count.rows[0]?.count ?? 0;
 
     const items = await pool.query(
-      `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, c.name as category_name
+      `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, p.in_stock, c.name as category_name
        from products p
        left join categories c on c.id = p.category_id
        ${whereSql}
@@ -314,6 +315,7 @@ app.get("/api/products", async (req, res) => {
         imageUrl: r.has_image_data ? `/api/products/${r.id}/image` : r.image_url ?? "",
         categoryId: r.category_id ?? null,
         categoryName: r.category_name ?? null,
+        inStock: r.in_stock !== false,
         badge: r.badge_kind
           ? {
               kind: r.badge_kind,
@@ -355,7 +357,8 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
 
   const body = req.body ?? {};
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const categoryId = typeof body.categoryId === "string" ? body.categoryId.trim() : null;
+  const categoryIdRaw = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
+  const categoryId = categoryIdRaw || null;
   const country = typeof body.country === "string" ? body.country.trim() : "";
   const file = req.file ?? null;
   const priceRaw = body.price;
@@ -373,23 +376,28 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     return;
   }
 
-  if (!file || !file.buffer?.length) {
-    res.status(400).json({ error: "image is required" });
-    return;
-  }
-
-  if (!String(file.mimetype || "").startsWith("image/")) {
-    res.status(400).json({ error: "invalid_image_type" });
-    return;
+  if (file?.buffer?.length) {
+    if (!String(file.mimetype || "").startsWith("image/")) {
+      res.status(400).json({ error: "invalid_image_type" });
+      return;
+    }
   }
 
   try {
-    const { rows } = await pool.query(
-      `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label)
-       values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8)
-       returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label`,
-      [name, categoryId, country, price, file.buffer, file.mimetype, badgeKind, badgeLabel],
-    );
+    const { rows } =
+      file && file.buffer?.length
+        ? await pool.query(
+            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
+             values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8, true)
+             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
+            [name, categoryId, country, price, file.buffer, file.mimetype, badgeKind, badgeLabel],
+          )
+        : await pool.query(
+            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
+             values ($1, $2::uuid, $3, $4::numeric, null, null, null, $5, $6, true)
+             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
+            [name, categoryId, country, price, badgeKind, badgeLabel],
+          );
     const r = rows[0];
     const category = r.category_id
       ? await pool.query(`select name from categories where id = $1::uuid`, [r.category_id])
@@ -403,12 +411,117 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       imageUrl: r.has_image_data ? `/api/products/${r.id}/image` : r.image_url ?? "",
       categoryId: r.category_id ?? null,
       categoryName,
+      inStock: r.in_stock !== false,
       badge: r.badge_kind ? { kind: r.badge_kind, label: r.badge_label ?? "" } : null,
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
+
+app.put("/api/products/:id", async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+
+  const id = typeof req.params.id === "string" ? req.params.id.trim() : "";
+  if (!id) {
+    res.status(400).json({ error: "id_required" });
+    return;
+  }
+
+  const body = req.body ?? {};
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const country = typeof body.country === "string" ? body.country.trim() : "";
+  const categoryIdRaw = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
+  const categoryId = categoryIdRaw || null;
+  const priceRaw = body.price;
+  const price =
+    typeof priceRaw === "number"
+      ? priceRaw
+      : typeof priceRaw === "string" && priceRaw.trim()
+        ? Number.parseFloat(priceRaw)
+        : null;
+  const badgeKind =
+    body.badgeKind === null || body.badgeKind === ""
+      ? null
+      : typeof body.badgeKind === "string"
+        ? body.badgeKind.trim() || null
+        : null;
+  const badgeLabel =
+    body.badgeLabel === null || body.badgeLabel === ""
+      ? null
+      : typeof body.badgeLabel === "string"
+        ? body.badgeLabel.trim() || null
+        : null;
+  const inStock = !(body.inStock === false || body.inStock === "false");
+
+  if (!name || !country) {
+    res.status(400).json({ error: "name, country are required" });
+    return;
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `update products
+       set name = $1,
+           category_id = $2::uuid,
+           country = $3,
+           price = $4::numeric,
+           badge_kind = $5,
+           badge_label = $6,
+           in_stock = $7
+       where id = $8::uuid
+       returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
+      [name, categoryId, country, price, badgeKind, badgeLabel, inStock, id],
+    );
+    const r = rows[0];
+    if (!r) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    const category = r.category_id
+      ? await pool.query(`select name from categories where id = $1::uuid`, [r.category_id])
+      : { rows: [] };
+    const categoryName = category.rows[0]?.name ?? null;
+    res.json({
+      id: r.id,
+      name: r.name,
+      country: r.country,
+      price: r.price,
+      imageUrl: r.has_image_data ? `/api/products/${r.id}/image` : r.image_url ?? "",
+      categoryId: r.category_id ?? null,
+      categoryName,
+      inStock: r.in_stock !== false,
+      badge: r.badge_kind ? { kind: r.badge_kind, label: r.badge_label ?? "" } : null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.delete("/api/products/:id", async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+
+  const id = typeof req.params.id === "string" ? req.params.id.trim() : "";
+  if (!id) {
+    res.status(400).json({ error: "id_required" });
+    return;
+  }
+
+  try {
+    const { rows } = await pool.query(`delete from products where id = $1::uuid returning id`, [id]);
+    if (!rows[0]) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+registerSuppliersAdminRoutes(app, { pool, requireAdmin });
 
 const PORT = 3001;
 
