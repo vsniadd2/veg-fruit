@@ -330,7 +330,13 @@ app.get("/api/health", async (_req, res) => {
 
 app.get("/api/products", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-  const categoryId = typeof req.query.categoryId === "string" ? req.query.categoryId.trim() : "";
+  const categoryIdRaw = typeof req.query.categoryId === "string" ? req.query.categoryId.trim() : "";
+  const categoryIds = categoryIdRaw
+    ? categoryIdRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
   const page = Math.max(1, Number.parseInt(String(req.query.page ?? "1"), 10) || 1);
   const pageSize = Math.min(50, Math.max(1, Number.parseInt(String(req.query.pageSize ?? "6"), 10) || 6));
   const offset = (page - 1) * pageSize;
@@ -341,9 +347,12 @@ app.get("/api/products", async (req, res) => {
     params.push(`%${q}%`);
     where.push(`(p.name ilike $${params.length} or p.country ilike $${params.length})`);
   }
-  if (categoryId) {
-    params.push(categoryId);
+  if (categoryIds.length === 1) {
+    params.push(categoryIds[0]);
     where.push(`p.category_id = $${params.length}::uuid`);
+  } else if (categoryIds.length > 1) {
+    params.push(categoryIds);
+    where.push(`p.category_id = any($${params.length}::uuid[])`);
   }
   const whereSql = where.length ? `where ${where.join(" and ")}` : "";
 

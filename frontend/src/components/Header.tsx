@@ -77,7 +77,7 @@ export default function Header({ variant = "home" }: HeaderProps) {
 
   return (
     <header
-      className="fixed top-0 w-full flex justify-between items-center px-6 lg:px-8 py-4 max-w-full bg-[#f9faf6]/93 backdrop-blur-sm text-[#1f642e] tracking-tight shadow-sm shadow-[#1f642e]/5 z-50"
+      className="fixed top-0 left-0 right-0 h-16 flex justify-between items-center px-4 sm:px-6 lg:px-8 max-w-full bg-white text-[#1f642e] tracking-tight shadow-sm shadow-[#1f642e]/5 z-50"
       data-purpose="navigation-header"
     >
       <div className="flex items-center gap-8 lg:gap-12 min-w-0">
@@ -114,7 +114,7 @@ export default function Header({ variant = "home" }: HeaderProps) {
           </Link>
         )}
         <a
-          className="h-12 px-6 rounded-full bg-[#1f642e] text-white text-base font-bold leading-none inline-flex items-center justify-center shadow-lg shadow-[#1f642e]/20 hover:bg-[#195324] transition-colors whitespace-nowrap"
+          className="hidden sm:inline-flex h-12 px-6 rounded-full bg-[#1f642e] text-white text-base font-bold leading-none items-center justify-center shadow-lg shadow-[#1f642e]/20 hover:bg-[#195324] transition-colors whitespace-nowrap"
           href="#"
           onClick={closeMenu}
         >
@@ -140,7 +140,24 @@ export default function Header({ variant = "home" }: HeaderProps) {
       </div>
 
       {menuOpen ? (
-        <div className="md:hidden fixed top-[5.5rem] left-0 right-0 border-t border-[#1f642e]/10 bg-[#f9faf6]/96 backdrop-blur-sm px-6 py-4 space-y-2 shadow-sm shadow-[#1f642e]/5">
+        <>
+          <div
+            aria-label="Закрыть меню"
+            className="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-black/20"
+            role="button"
+            tabIndex={0}
+            onClick={closeMenu}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") closeMenu();
+            }}
+          >
+            <div className="px-4 sm:px-6 py-4">
+              <Link className="text-2xl font-black text-[#1f642e] inline-block" to="/" onClick={closeMenu}>
+                Садовка
+              </Link>
+            </div>
+          </div>
+          <div className="md:hidden fixed top-16 left-0 right-0 z-50 rounded-b-3xl border-t border-[#1f642e]/10 bg-white px-4 sm:px-6 py-4 space-y-2 shadow-xl shadow-[#1f642e]/10 ring-1 ring-[#1f642e]/10">
           <Link
             className={[
               "block py-3 px-2 rounded-xl font-semibold",
@@ -178,7 +195,15 @@ export default function Header({ variant = "home" }: HeaderProps) {
           >
             Каталог
           </Link>
-        </div>
+          <a
+            className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-full bg-[#1f642e] text-white text-base font-bold shadow-lg shadow-[#1f642e]/20 hover:bg-[#195324] transition-colors"
+            href="#"
+            onClick={closeMenu}
+          >
+            Заказать
+          </a>
+          </div>
+        </>
       ) : null}
     </header>
   );

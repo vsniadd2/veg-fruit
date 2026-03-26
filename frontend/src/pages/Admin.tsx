@@ -411,18 +411,27 @@ function setSavedActiveTab(value: AdminTab) {
   }
 }
 
-function getSavedCatalogCategoryId(): string {
+function getSavedCatalogCategoryIds(): string[] {
   try {
-    return sessionStorage.getItem(CATALOG_CATEGORY_ID_KEY) ?? "";
+    const raw = sessionStorage.getItem(CATALOG_CATEGORY_ID_KEY) ?? "";
+    if (!raw) return [];
+    // Backward compatibility: old version stored a single string id.
+    if (!raw.startsWith("[")) return [raw];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim())
+      .filter(Boolean);
   } catch {
-    return "";
+    return [];
   }
 }
 
-function setSavedCatalogCategoryId(value: string) {
+function setSavedCatalogCategoryIds(value: string[]) {
   try {
-    if (!value) sessionStorage.removeItem(CATALOG_CATEGORY_ID_KEY);
-    else sessionStorage.setItem(CATALOG_CATEGORY_ID_KEY, value);
+    if (!value.length) sessionStorage.removeItem(CATALOG_CATEGORY_ID_KEY);
+    else sessionStorage.setItem(CATALOG_CATEGORY_ID_KEY, JSON.stringify(value));
   } catch {
     // ignore
   }
@@ -477,7 +486,9 @@ export default function Admin() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
-  const [catalogCategoryId, setCatalogCategoryId] = useState<string>(() => getSavedCatalogCategoryId());
+  const [catalogCategoryIds, setCatalogCategoryIds] = useState<string[]>(() => getSavedCatalogCategoryIds());
+  const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
+  const [draftCategoryIds, setDraftCategoryIds] = useState<string[]>(() => getSavedCatalogCategoryIds());
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [highlightProductId, setHighlightProductId] = useState<string | null>(null);
   const [highlightCategoryId, setHighlightCategoryId] = useState<string | null>(null);
@@ -541,8 +552,9 @@ export default function Admin() {
   }, [activeTab]);
 
   useEffect(() => {
-    setSavedCatalogCategoryId(catalogCategoryId);
-  }, [catalogCategoryId]);
+    setSavedCatalogCategoryIds(catalogCategoryIds);
+    setDraftCategoryIds(catalogCategoryIds);
+  }, [catalogCategoryIds]);
 
   const doLogout = () => {
     setToken(ACCESS_TOKEN_KEY, null);
@@ -664,8 +676,9 @@ export default function Admin() {
     try {
       await adminFetchJson<{ ok: boolean }>(`/api/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
       await loadCategories();
-      if (catalogCategoryId === id) setCatalogCategoryId("");
-      await loadCatalogProducts(catalogCategoryId === id ? undefined : catalogCategoryId || undefined);
+      const nextIds = catalogCategoryIds.filter((x) => x !== id);
+      if (nextIds.length !== catalogCategoryIds.length) setCatalogCategoryIds(nextIds);
+      await loadCatalogProducts(nextIds);
     } finally {
       setIsDeletingCategory(false);
     }
@@ -726,10 +739,11 @@ export default function Admin() {
     }
   };
 
-  const loadCatalogProducts = async (categoryId?: string) => {
+  const loadCatalogProducts = async (categoryIds?: string[]) => {
     setIsLoadingCatalog(true);
     try {
-      const q = categoryId ? `?pageSize=50&categoryId=${encodeURIComponent(categoryId)}` : "?pageSize=50";
+      const ids = categoryIds ?? [];
+      const q = ids.length ? `?pageSize=50&categoryId=${encodeURIComponent(ids.join(","))}` : "?pageSize=50";
       const data = await adminFetchJson<{ items: Product[] }>(`/api/products${q}`);
       setCatalogProducts(data.items ?? []);
     } finally {
@@ -782,7 +796,7 @@ export default function Admin() {
       });
       setEditingProduct(null);
       await loadRecentProducts();
-      await loadCatalogProducts(catalogCategoryId || undefined);
+      await loadCatalogProducts(catalogCategoryIds);
     } catch {
       setError("Не удалось сохранить товар.");
     } finally {
@@ -800,7 +814,7 @@ export default function Admin() {
       });
       setDeletingProductId(null);
       await loadRecentProducts();
-      await loadCatalogProducts(catalogCategoryId || undefined);
+      await loadCatalogProducts(catalogCategoryIds);
     } catch {
       setError("Не удалось удалить товар.");
     } finally {
@@ -849,9 +863,9 @@ export default function Admin() {
     if (!isAuthed) return;
     if (isCheckingAuth) return;
     if (activeTab !== "catalog") return;
-    void loadCatalogProducts(catalogCategoryId || undefined).catch(() => {});
+    void loadCatalogProducts(catalogCategoryIds).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, catalogCategoryId, isAuthed]);
+  }, [activeTab, catalogCategoryIds, isAuthed]);
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -1557,7 +1571,7 @@ export default function Admin() {
                               onClick={() => {
                                 setIsSearchOpen(false);
                                 setActiveTab("catalog");
-                                setCatalogCategoryId(c.id);
+                                setCatalogCategoryIds([c.id]);
                                 setHighlightCategoryId(c.id);
                                 window.setTimeout(() => {
                                   document.getElementById(`category-${c.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1585,7 +1599,7 @@ export default function Admin() {
                               onClick={() => {
                                 setIsSearchOpen(false);
                                 setActiveTab("catalog");
-                                if (p.categoryId) setCatalogCategoryId(p.categoryId);
+                                if (p.categoryId) setCatalogCategoryIds([p.categoryId]);
                                 setHighlightProductId(p.id);
                                 window.setTimeout(() => {
                                   document.getElementById(`product-${p.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1747,7 +1761,7 @@ export default function Admin() {
                         <label className="flex items-center gap-3 cursor-pointer select-none">
                           <input
                             checked={newProductSeasonal}
-                            className="rounded border-slate-300 text-primary focus:ring-primary"
+                            className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
                             onChange={(e) => setNewProductSeasonal(e.target.checked)}
                             type="checkbox"
                           />
@@ -1969,7 +1983,7 @@ export default function Admin() {
                           <label className="flex items-center gap-3 cursor-pointer select-none">
                             <input
                               checked={editProductInStock}
-                              className="rounded border-slate-300 text-primary focus:ring-primary"
+                              className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
                               onChange={(e) => setEditProductInStock(e.target.checked)}
                               type="checkbox"
                             />
@@ -1981,7 +1995,7 @@ export default function Admin() {
                           <label className="flex items-center gap-3 cursor-pointer select-none">
                             <input
                               checked={editProductSeasonal}
-                              className="rounded border-slate-300 text-primary focus:ring-primary"
+                              className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
                               onChange={(e) => setEditProductSeasonal(e.target.checked)}
                               type="checkbox"
                             />
@@ -2213,60 +2227,164 @@ export default function Admin() {
                           + Добавить категорию
                         </button>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          className={[
-                            "px-3 py-2 rounded-xl text-sm font-semibold border transition-colors",
-                            !catalogCategoryId
-                              ? "bg-primary text-white border-primary"
-                              : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700",
-                          ].join(" ")}
-                          onClick={() => setCatalogCategoryId("")}
-                          type="button"
-                        >
-                          Все категории
-                        </button>
-                        {categories.map((c) => {
-                          const active = c.id === catalogCategoryId;
-                          return (
-                            <div key={c.id} className="flex items-center gap-1">
-                              <button
-                                id={`category-${c.id}`}
-                                className={[
-                                  "px-3 py-2 rounded-xl text-sm font-semibold border transition-colors",
-                                  active
-                                    ? "bg-primary text-white border-primary"
-                                    : highlightCategoryId === c.id
-                                      ? "bg-primary/10 border-primary/40 text-slate-900"
-                                      : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700",
-                                ].join(" ")}
-                                onClick={() => setCatalogCategoryId(c.id)}
-                                type="button"
-                              >
-                                {c.name}
-                              </button>
-                              <button
-                                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                                onClick={() => {
-                                  setEditingCategoryId(c.id);
-                                  setEditingCategoryName(c.name);
-                                }}
-                                type="button"
-                                aria-label="Редактировать категорию"
-                              >
-                                <IconPencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-red-600 transition-colors"
-                                onClick={() => setDeletingCategoryId(c.id)}
-                                type="button"
-                                aria-label="Удалить категорию"
-                              >
-                                <IconTrash className="w-4 h-4" />
-                              </button>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs text-slate-500">Фильтр товаров по категориям.</div>
+                          <div className="text-xs text-slate-500">Всего: {categories.length}</div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <button
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-semibold transition-colors"
+                            type="button"
+                            onClick={() => {
+                              setDraftCategoryIds(catalogCategoryIds);
+                              setIsCategoryFilterOpen(true);
+                            }}
+                          >
+                            Категории
+                            {catalogCategoryIds.length ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                {catalogCategoryIds.length}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500">(все)</span>
+                            )}
+                          </button>
+                          {catalogCategoryIds.length ? (
+                            <button
+                              className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors"
+                              type="button"
+                              onClick={() => setCatalogCategoryIds([])}
+                            >
+                              Сбросить
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {isCategoryFilterOpen ? (
+                          <div className="fixed inset-0 z-[10000] flex items-start justify-center pt-20 sm:pt-24">
+                            <div
+                              className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
+                              onClick={() => setIsCategoryFilterOpen(false)}
+                              role="button"
+                              tabIndex={-1}
+                            />
+                            <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+                              <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+                                <div>
+                                  <h4 className="text-lg font-bold">Фильтр по категориям</h4>
+                                  <p className="text-sm text-slate-500">Выберите одну или несколько категорий.</p>
+                                </div>
+                                <button
+                                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700"
+                                  type="button"
+                                  onClick={() => setIsCategoryFilterOpen(false)}
+                                  aria-label="Закрыть"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              <div className="max-h-[60vh] overflow-y-auto p-5 space-y-2">
+                                <label className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                                    checked={draftCategoryIds.length === 0}
+                                    onChange={(e) => {
+                                      if (e.target.checked) setDraftCategoryIds([]);
+                                    }}
+                                  />
+                                  <span className="font-semibold">Все категории</span>
+                                </label>
+
+                                <div className="h-px bg-slate-100 my-2" />
+
+                                {categories.map((c) => {
+                                  const checked = draftCategoryIds.includes(c.id);
+                                  return (
+                                    <div key={c.id} className="flex items-center gap-2">
+                                      <label className="flex flex-1 items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                                          checked={checked}
+                                          onChange={(e) => {
+                                            setDraftCategoryIds((prev) => {
+                                              const next = new Set(prev);
+                                              if (e.target.checked) next.add(c.id);
+                                              else next.delete(c.id);
+                                              return Array.from(next);
+                                            });
+                                          }}
+                                        />
+                                        <span className="font-medium">{c.name}</span>
+                                      </label>
+                                      <button
+                                        className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+                                        onClick={() => {
+                                          setEditingCategoryId(c.id);
+                                          setEditingCategoryName(c.name);
+                                          setIsCategoryFilterOpen(false);
+                                        }}
+                                        type="button"
+                                        aria-label="Редактировать категорию"
+                                        title="Редактировать"
+                                      >
+                                        <IconPencil className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-red-600 transition-colors"
+                                        onClick={() => {
+                                          setDeletingCategoryId(c.id);
+                                          setIsCategoryFilterOpen(false);
+                                        }}
+                                        type="button"
+                                        aria-label="Удалить категорию"
+                                        title="Удалить"
+                                      >
+                                        <IconTrash className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="p-5 border-t border-slate-100 flex flex-col sm:flex-row gap-2 sm:justify-between">
+                                <button
+                                  className="px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold"
+                                  type="button"
+                                  onClick={() => setDraftCategoryIds([])}
+                                >
+                                  Выбрать все
+                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    className="px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold"
+                                    type="button"
+                                    onClick={() => {
+                                      setDraftCategoryIds(catalogCategoryIds);
+                                      setIsCategoryFilterOpen(false);
+                                    }}
+                                  >
+                                    Отмена
+                                  </button>
+                                  <button
+                                    className="px-4 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold transition-colors"
+                                    type="button"
+                                    onClick={() => {
+                                      setCatalogCategoryIds(draftCategoryIds);
+                                      setIsCategoryFilterOpen(false);
+                                    }}
+                                  >
+                                    Применить
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                          );
-                        })}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </section>
@@ -2309,7 +2427,7 @@ export default function Admin() {
                                   setNewCategoryName("");
                                   setIsCreatingCategory(false);
                                   await loadCategories();
-                                  setCatalogCategoryId(created.item.id);
+                                  setCatalogCategoryIds([created.item.id]);
                                 } catch {
                                   setError("Не удалось создать категорию.");
                                 }
@@ -2438,7 +2556,7 @@ export default function Admin() {
                       </div>
                       <button
                         className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors"
-                        onClick={() => void loadCatalogProducts(catalogCategoryId || undefined)}
+                        onClick={() => void loadCatalogProducts(catalogCategoryIds)}
                         type="button"
                       >
                         Обновить

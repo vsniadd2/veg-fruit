@@ -589,9 +589,9 @@ export default function Home() {
       </main>
 
       {/* BEGIN: Footer */}
-      <footer className="bg-gray-50 pt-20 pb-10 border-t border-gray-200" id="about">
+      <footer className="bg-gray-50 pt-12 pb-6 border-t border-gray-200" id="about">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
             <div>
               <div className="flex items-center space-x-2 mb-6">
                 <div className="w-8 h-8 bg-forest-green rounded-md flex items-center justify-center">
@@ -722,8 +722,10 @@ export default function Home() {
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
+          <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400 gap-2">
             <p>© 2026 Садовка. Все права защищены.</p>
+            <span className="text-gray-300 hidden md:inline">•</span>
+            <p className="text-gray-400">Версия 26.03.2026</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link className="hover:text-forest-green" to="/privacy">
                 Политика конфиденциальности
