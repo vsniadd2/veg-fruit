@@ -29,6 +29,17 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+function mapHomeCardRow(row) {
+  return {
+    slot: Number(row.slot),
+    title: row.title ?? "",
+    subtitle: row.subtitle ?? "",
+    categoryId: row.category_id ?? null,
+    categoryName: row.category_name ?? null,
+    imageUrl: row.has_image_data ? `/api/public/home-cards/${row.slot}/image` : null,
+  };
+}
+
 function signAccessToken() {
   return jwt.sign({ role: "admin" }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
 }
@@ -118,6 +129,41 @@ app.get("/api/public/categories", async (_req, res) => {
   }
 });
 
+app.get("/api/public/home-cards", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `select hc.slot, hc.title, hc.subtitle, hc.category_id, c.name as category_name, hc.image_data is not null as has_image_data
+       from home_cards hc
+       left join categories c on c.id = hc.category_id
+       order by hc.slot asc`,
+    );
+    res.json({ ok: true, items: rows.map(mapHomeCardRow) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.get("/api/public/home-cards/:slot/image", async (req, res) => {
+  const slot = Number.parseInt(String(req.params.slot ?? ""), 10);
+  if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
+    res.status(400).end();
+    return;
+  }
+  try {
+    const { rows } = await pool.query(`select image_data, image_mime from home_cards where slot = $1`, [slot]);
+    const row = rows[0];
+    if (!row?.image_data) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("Content-Type", row.image_mime || "application/octet-stream");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.end(row.image_data);
+  } catch {
+    res.status(500).end();
+  }
+});
+
 app.get("/api/categories", async (req, res) => {
   const payload = requireAdmin(req, res);
   if (!payload) return;
@@ -202,6 +248,11 @@ app.delete("/api/categories/:id", async (req, res) => {
   }
 
   try {
+    const usage = await pool.query(`select count(*)::int as count from home_cards where category_id = $1::uuid`, [id]);
+    if ((usage.rows[0]?.count ?? 0) > 0) {
+      res.status(409).json({ ok: false, error: "category_in_use_home_cards" });
+      return;
+    }
     const { rows } = await pool.query(`delete from categories where id = $1::uuid returning id`, [id]);
     if (!rows[0]) {
       res.status(404).json({ ok: false, error: "not_found" });
@@ -518,6 +569,134 @@ app.delete("/api/products/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+app.get("/api/admin/home-cards", async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+  try {
+    const { rows } = await pool.query(
+      `select hc.slot, hc.title, hc.subtitle, hc.category_id, c.name as category_name, hc.image_data is not null as has_image_data
+       from home_cards hc
+       left join categories c on c.id = hc.category_id
+       order by hc.slot asc`,
+    );
+    res.json({ ok: true, items: rows.map(mapHomeCardRow) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.put("/api/admin/home-cards/:slot", async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+
+  const slot = Number.parseInt(String(req.params.slot ?? ""), 10);
+  if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
+    res.status(400).json({ ok: false, error: "slot_invalid" });
+    return;
+  }
+
+  const body = req.body ?? {};
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const subtitle = typeof body.subtitle === "string" ? body.subtitle.trim() : "";
+  const categoryIdRaw = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
+  const categoryId = categoryIdRaw || null;
+
+  if (!title) {
+    res.status(400).json({ ok: false, error: "title_required" });
+    return;
+  }
+  if (!subtitle) {
+    res.status(400).json({ ok: false, error: "subtitle_required" });
+    return;
+  }
+  if (!categoryId) {
+    res.status(400).json({ ok: false, error: "category_required" });
+    return;
+  }
+
+  try {
+    const category = await pool.query(`select id from categories where id = $1::uuid`, [categoryId]);
+    if (!category.rows[0]) {
+      res.status(400).json({ ok: false, error: "category_not_found" });
+      return;
+    }
+
+    const updated = await pool.query(
+      `update home_cards
+       set title = $2,
+           subtitle = $3,
+           category_id = $4::uuid,
+           updated_at = now()
+       where slot = $1
+       returning slot`,
+      [slot, title, subtitle, categoryId],
+    );
+    if (!updated.rows[0]) {
+      res.status(404).json({ ok: false, error: "not_found" });
+      return;
+    }
+
+    const { rows } = await pool.query(
+      `select hc.slot, hc.title, hc.subtitle, hc.category_id, c.name as category_name, hc.image_data is not null as has_image_data
+       from home_cards hc
+       left join categories c on c.id = hc.category_id
+       where hc.slot = $1`,
+      [slot],
+    );
+    res.json({ ok: true, item: mapHomeCardRow(rows[0]) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.post("/api/admin/home-cards/:slot/image", upload.single("image"), async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+
+  const slot = Number.parseInt(String(req.params.slot ?? ""), 10);
+  if (!Number.isInteger(slot) || slot < 1 || slot > 4) {
+    res.status(400).json({ ok: false, error: "slot_invalid" });
+    return;
+  }
+
+  const file = req.file ?? null;
+  if (!file?.buffer?.length) {
+    res.status(400).json({ ok: false, error: "image_required" });
+    return;
+  }
+  if (!String(file.mimetype || "").startsWith("image/")) {
+    res.status(400).json({ ok: false, error: "invalid_image_type" });
+    return;
+  }
+
+  try {
+    const updated = await pool.query(
+      `update home_cards
+       set image_data = $2,
+           image_mime = $3,
+           updated_at = now()
+       where slot = $1
+       returning slot`,
+      [slot, file.buffer, file.mimetype],
+    );
+    if (!updated.rows[0]) {
+      res.status(404).json({ ok: false, error: "not_found" });
+      return;
+    }
+
+    const { rows } = await pool.query(
+      `select hc.slot, hc.title, hc.subtitle, hc.category_id, c.name as category_name, hc.image_data is not null as has_image_data
+       from home_cards hc
+       left join categories c on c.id = hc.category_id
+       where hc.slot = $1`,
+      [slot],
+    );
+    res.json({ ok: true, item: mapHomeCardRow(rows[0]) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
   }
 });
 

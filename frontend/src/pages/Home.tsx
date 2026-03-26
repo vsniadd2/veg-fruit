@@ -6,17 +6,24 @@ export default function Home() {
   const images = useMemo(
     () => ({
       hero: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=80",
-      categorySeasonal:
-        "https://images.unsplash.com/photo-1547514701-42782101795e?auto=format&fit=crop&w=1400&q=80",
-      categoryExotic:
-        "https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=1400&q=80",
-      categorySalad:
-        "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1400&q=80",
-      categoryVeg:
-        "https://images.unsplash.com/photo-1543083477-4f785aeafaa9?auto=format&fit=crop&w=1400&q=80",
     }),
     [],
   );
+  const API_BASE_URL = "http://localhost:3001";
+  const HOME_CARD_IMAGE_PLACEHOLDER =
+    "data:image/svg+xml," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="960" viewBox="0 0 700 960"><rect fill="#e5e7eb" width="700" height="960"/><text x="350" y="480" dominant-baseline="middle" text-anchor="middle" fill="#6b7280" font-family="system-ui,sans-serif" font-size="28">Изображение</text></svg>`,
+    );
+  type HomeCard = {
+    slot: number;
+    title: string;
+    subtitle: string;
+    categoryId: string | null;
+    categoryName: string | null;
+    imageUrl: string | null;
+  };
+  const [homeCards, setHomeCards] = useState<HomeCard[]>([]);
 
   const testimonials = useMemo(
     () => [
@@ -118,6 +125,45 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/public/home-cards`);
+        if (!res.ok) throw new Error(`http_${res.status}`);
+        const data = (await res.json()) as {
+          ok?: boolean;
+          items?: Array<{
+            slot: number;
+            title: string;
+            subtitle: string;
+            categoryId: string | null;
+            categoryName: string | null;
+            imageUrl: string | null;
+          }>;
+        };
+        if (cancelled) return;
+        const mapped = (data.items ?? [])
+          .map((item) => ({
+            slot: Number(item.slot),
+            title: String(item.title ?? ""),
+            subtitle: String(item.subtitle ?? ""),
+            categoryId: item.categoryId ? String(item.categoryId) : null,
+            categoryName: item.categoryName ? String(item.categoryName) : null,
+            imageUrl: item.imageUrl ? `${API_BASE_URL}${item.imageUrl}` : null,
+          }))
+          .sort((a, b) => a.slot - b.slot);
+        setHomeCards(mapped);
+      } catch {
+        if (cancelled) return;
+        setHomeCards([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined" || !("matchMedia" in window)) return;
 
     const mq = window.matchMedia("(min-width: 768px)");
@@ -177,7 +223,7 @@ export default function Home() {
     <>
       <Header />
 
-      <main className="overflow-x-hidden">
+      <main className="overflow-x-hidden pt-24">
         {/* BEGIN: Hero Section */}
         <section className="relative overflow-hidden bg-green-50 py-12 sm:py-16 lg:py-24">
           <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center">
@@ -208,10 +254,10 @@ export default function Home() {
               </div>
             </div>
             <div className="lg:w-1/2 mt-12 lg:mt-0 relative group">
-              <div className="rounded-3xl overflow-hidden shadow-2xl rotate-2 aspect-[4/3] sm:aspect-[16/11] transition-transform duration-500 ease-out will-change-transform group-hover:rotate-1 group-hover:scale-[1.01]">
+              <div className="rounded-3xl overflow-hidden shadow-2xl rotate-2 aspect-[4/3] sm:aspect-[16/11] transition-transform duration-500 ease-out group-hover:will-change-transform group-hover:rotate-1 group-hover:scale-[1.01]">
                 <img
                   alt="Свежие овощи и ягоды"
-                  className="w-full h-full object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-[1.05]"
+                  className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:will-change-transform group-hover:scale-[1.05]"
                   loading="eager"
                   src={images.hero}
                 />
@@ -319,65 +365,42 @@ export default function Home() {
               </Link>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Category 1 */}
-              <div className="group relative rounded-3xl overflow-hidden h-72 sm:h-96 cursor-pointer shadow-lg" data-reveal>
-                <img
-                  alt="Сезонные фрукты"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="lazy"
-                  src={images.categorySeasonal}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
-                  <h3 className="text-2xl font-bold text-white mb-1">Сезонные фрукты</h3>
-                  <p className="text-white/80">От 120 BYN/кг</p>
-                </div>
-              </div>
-              {/* Category 2 */}
-              <div className="group relative rounded-3xl overflow-hidden h-72 sm:h-96 cursor-pointer shadow-lg" data-reveal>
-                <img
-                  alt="Экзотика"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="lazy"
-                  src={images.categoryExotic}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
-                  <h3 className="text-2xl font-bold text-white mb-1">Экзотика</h3>
-                  <p className="text-white/80">От 350 BYN/шт</p>
-                </div>
-              </div>
-              {/* Category 3 */}
-              <div className="group relative rounded-3xl overflow-hidden h-72 sm:h-96 cursor-pointer shadow-lg" data-reveal>
-                <img
-                  alt="Наборы для салата"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="lazy"
-                  src={images.categorySalad}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
-                  <h3 className="text-2xl font-bold text-white mb-1">Наборы для салата</h3>
-                  <p className="text-white/80">От 450 BYN/набор</p>
-                </div>
-              </div>
-              {/* Category 4 */}
-              <div className="group relative rounded-3xl overflow-hidden h-72 sm:h-96 cursor-pointer shadow-lg" data-reveal>
-                <img
-                  alt="Овощи"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="lazy"
-                  src={images.categoryVeg}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
-                  <h3 className="text-2xl font-bold text-white mb-1">Овощи</h3>
-                  <p className="text-white/80">От 85 BYN/кг</p>
-                </div>
-              </div>
+              {(homeCards.length
+                ? homeCards
+                : Array.from({ length: 4 }, (_, idx) => ({
+                    slot: idx + 1,
+                    title: "",
+                    subtitle: "",
+                    categoryId: null,
+                    categoryName: null,
+                    imageUrl: null,
+                  }))
+              ).map((card) => (
+                <Link
+                  key={card.slot}
+                  className="group relative rounded-3xl overflow-hidden h-72 sm:h-96 cursor-pointer shadow-lg"
+                  data-reveal
+                  to={card.categoryName ? `/catalog?category=${encodeURIComponent(card.categoryName)}` : "/catalog"}
+                >
+                  <img
+                    alt={card.title || `Категория ${card.slot}`}
+                    className="w-full h-full object-cover group-hover:scale-110 group-hover:will-change-transform transition-transform duration-500 transform-gpu"
+                    loading="lazy"
+                    src={card.imageUrl || HOME_CARD_IMAGE_PLACEHOLDER}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
+                    <h3 className="text-2xl font-bold text-white mb-1">{card.title || "Скоро здесь будет категория"}</h3>
+                    <p className="text-white/80">{card.subtitle || "Настройте карточку в админ-панели"}</p>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         </section>
         {/* END: Product Categories */}
 
         {/* BEGIN: How It Works */}
-        <section className="py-24 bg-white">
+        <section className="py-24 bg-white" id="how-it-works">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-4xl font-bold text-forest-green mb-4" data-reveal>
               Как мы работаем
@@ -452,8 +475,8 @@ export default function Home() {
             <div className="relative" data-reveal>
               <div className="overflow-hidden">
                 <div
-                  className="flex gap-0 md:gap-4 transition-transform duration-500 ease-out"
-                  style={{ transform: `translateX(${translateX}px)` }}
+                  className="flex gap-0 md:gap-4 transition-transform duration-500 ease-out transform-gpu"
+                  style={{ transform: `translate3d(${translateX}px, 0, 0)` }}
                 >
                   {testimonials.map((t, idx) => (
                     <div
@@ -463,7 +486,7 @@ export default function Home() {
                       }}
                       className="shrink-0 w-full md:w-[calc((100%-2rem)/3)]"
                     >
-                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full min-h-[320px] transition-all duration-300 ease-out will-change-transform hover:-translate-y-2 hover:shadow-xl hover:border-gray-200">
+                      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full min-h-[320px] transition-[transform,box-shadow,border-color] duration-300 ease-out hover:will-change-transform hover:-translate-y-2 hover:shadow-xl hover:border-gray-200">
                         <div className="flex text-yellow-400 mb-4">
                           <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20" aria-hidden="true">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -566,7 +589,7 @@ export default function Home() {
       </main>
 
       {/* BEGIN: Footer */}
-      <footer className="bg-gray-50 pt-20 pb-10 border-t border-gray-200">
+      <footer className="bg-gray-50 pt-20 pb-10 border-t border-gray-200" id="about">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div>
@@ -652,6 +675,13 @@ export default function Home() {
             <div>
               <h4 className="font-bold text-forest-green mb-6">Контакты</h4>
               <ul className="space-y-4 text-sm text-gray-500">
+                <li className="leading-relaxed">
+                  ООО &quot;Миксголдфрукт&quot;
+                  <br />
+                  УНП 193855188
+                  <br />
+                  Юридический адрес У Л. ВЕРЫ ХОРУЖЕЙ, ДОМ 6А, ОФ. 117, 220100
+                </li>
                 <li className="flex items-center">
                   <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -661,7 +691,9 @@ export default function Home() {
                       strokeWidth="2"
                     />
                   </svg>
-                  8 800 555-35-35
+                  <a className="hover:text-forest-green" href="tel:+375297606955">
+                    +375(29)760-69-55
+                  </a>
                 </li>
                 <li className="flex items-center">
                   <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -672,7 +704,9 @@ export default function Home() {
                       strokeWidth="2"
                     />
                   </svg>
-                  hello@greenharvest.ru
+                  <a className="hover:text-forest-green" href="mailto:miksgoldfruct@mail.ru">
+                    miksgoldfruct@mail.ru
+                  </a>
                 </li>
                 <li className="flex items-center">
                   <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">

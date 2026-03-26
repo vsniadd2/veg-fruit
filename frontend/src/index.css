@@ -2,9 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar (Chrome/Edge/Safari + Firefox) */
+/* Скролл: по умолчанию без «нативного smooth» на html — он часто даёт лаги на длинных страницах.
+   Для якорей и кнопок «наверх» при необходимости используйте scroll-behavior: smooth точечно или scrollIntoView({ behavior: "smooth" }). */
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   scrollbar-width: thin;
   scrollbar-color: #0a4a34 #f3f4f6; /* thumb / track */
 }
@@ -12,6 +13,44 @@ html {
 /* Предотвращаем горизонтальный скролл из-за широких блоков на узких экранах */
 body {
   overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Декоративные «кругляши» на фоне всего сайта — как в catalog.txt (watercolor blobs) */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(80px);
+}
+
+/* fixed top-20 left-0 w-64 h-64 bg-primary/5 */
+body::before {
+  width: 16rem;
+  height: 16rem;
+  top: 5rem;
+  left: 0;
+  background: rgba(31, 100, 46, 0.05);
+}
+
+/* fixed bottom-0 right-0 w-96 h-96 bg-secondary/5 */
+body::after {
+  width: 24rem;
+  height: 24rem;
+  bottom: 0;
+  right: 0;
+  background: rgba(38, 107, 59, 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    transition: none;
+  }
 }
 
 /* WebKit scrollbars */
@@ -51,6 +90,7 @@ body {
 [data-reveal].reveal-in {
   opacity: 1;
   transform: translate3d(0, 0, 0);
+  will-change: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -61,6 +101,7 @@ body {
   [data-reveal].reveal-init {
     transition: none;
     transform: none;
+    will-change: auto;
   }
 }
 
@@ -113,5 +154,15 @@ body {
 
 .sort-select {
   color: #111827;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* Legacy Edge/IE: скрыть нативную стрелку select */
+.sort-select::-ms-expand {
+  display: none;
 }
 

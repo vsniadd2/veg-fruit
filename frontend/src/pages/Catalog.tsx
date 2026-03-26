@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-
-import Header from "../components/Header";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 type ProductBadge =
   | { kind: "seasonal"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" }
@@ -15,6 +13,7 @@ type Product = {
   imageUrl: string;
   category: string; // categoryId from backend (or slug in mock fallback)
   categoryName?: string | null; // for convenience in UI
+  price?: number | null;
   badge?: ProductBadge;
 };
 
@@ -26,6 +25,7 @@ const CATALOG_IMAGE_PLACEHOLDER =
 
 export default function Catalog() {
   const API_BASE_URL = "http://localhost:3001";
+  const [searchParams] = useSearchParams();
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -34,6 +34,19 @@ export default function Catalog() {
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
   const [apiProducts, setApiProducts] = useState<Product[]>([]);
+  const sortOptions = useMemo(
+    () =>
+      [
+        { value: "default", label: "По свежести" },
+        { value: "name", label: "По названию" },
+        { value: "season", label: "По сезону" },
+      ] as const,
+    [],
+  );
+  const sortLabel = useMemo(() => sortOptions.find((o) => o.value === sort)?.label ?? "По свежести", [sort, sortOptions]);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement | null>(null);
+  const sortButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,9 +70,46 @@ export default function Catalog() {
   }, []);
 
   useEffect(() => {
+    if (!sortMenuOpen) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (sortMenuRef.current?.contains(target)) return;
+      if (sortButtonRef.current?.contains(target)) return;
+      setSortMenuOpen(false);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setSortMenuOpen(false);
+      sortButtonRef.current?.focus();
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [sortMenuOpen]);
+
+  useEffect(() => {
     if (!categories.length) return;
+    const categoryFromQuery = searchParams.get("category");
+    if (categoryFromQuery) {
+      const normalized = categoryFromQuery.trim().toLowerCase();
+      const matched =
+        categories.find((c) => c.id === categoryFromQuery) ??
+        categories.find((c) => c.name.trim().toLowerCase() === normalized);
+      if (matched) {
+        setCategory(matched.id);
+        setPage(1);
+        return;
+      }
+    }
     setCategory((prev) => (categories.some((c) => c.id === prev) ? prev : categories[0]!.id));
-  }, [categories]);
+  }, [categories, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +155,12 @@ export default function Catalog() {
           const mapped: Product[] = (data.items ?? [])
             .map((it: any) => {
               const badge = badgeFromApi(it.badge);
+              const price =
+                typeof it.price === "number"
+                  ? it.price
+                  : typeof it.price === "string" && it.price.trim()
+                    ? Number.parseFloat(it.price)
+                    : null;
               return {
                 id: String(it.id),
                 name: String(it.name ?? ""),
@@ -112,6 +168,7 @@ export default function Catalog() {
                 imageUrl: toAbsoluteImageUrl(String(it.imageUrl ?? "")),
                 category: String(it.categoryId ?? ""),
                 categoryName: it.categoryName ?? null,
+                price: Number.isFinite(price as number) ? (price as number) : null,
                 badge,
               } as Product;
             })
@@ -264,37 +321,98 @@ export default function Catalog() {
     return filteredProducts.slice(start, start + pageSize);
   }, [currentPage, filteredProducts]);
 
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Escape") return;
+    setQuery("");
+    setPage(1);
+  };
+
+  const organicBgStyle = useMemo<React.CSSProperties>(
+    () => ({
+      backgroundImage: "radial-gradient(circle at 2px 2px, rgba(31, 100, 46, 0.05) 1px, transparent 0)",
+      backgroundSize: "40px 40px",
+    }),
+    [],
+  );
+
+  const formatPrice = (p: Product) => {
+    if (p.price === null || p.price === undefined || Number.isNaN(p.price)) return "—";
+    return `${p.price.toFixed(2)}`;
+  };
+
   return (
-    <div className="bg-white text-[#1b4332]">
-      <Header variant="catalog" />
-
-      {/* BEGIN: PageTitle Section */}
-      <section className="bg-gray-50 py-12">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 px-1">Наш каталог</h1>
-          <p className="text-gray-600 max-w-2xl mx-auto px-1 text-sm sm:text-base">
-            Свежие овощи, фрукты и зелень круглый год — с доставкой. Подбираем ассортимент так, чтобы вам было проще
-            заказать нужное.
-          </p>
+    <div className="bg-[#f9faf6] text-[#1a1c1a] overflow-x-hidden" style={organicBgStyle}>
+      {/* Header Navigation (from catalog.txt) */}
+      <header className="fixed top-0 w-full flex justify-between items-center px-6 lg:px-8 py-4 max-w-full bg-[#f9faf6]/93 backdrop-blur-sm text-[#1f642e] tracking-tight shadow-sm shadow-[#1f642e]/5 z-50">
+        <div className="flex items-center gap-8 lg:gap-12 min-w-0">
+          <Link className="text-2xl font-black text-[#1f642e] shrink-0" to="/">
+            Садовка
+          </Link>
+          <nav className="hidden md:flex gap-8">
+            <Link className="text-stone-600 hover:text-[#1f642e] transition-colors" to="/">
+              Главная
+            </Link>
+            <Link className="text-[#1f642e] font-bold border-b-2 border-[#1f642e] pb-1" to="/catalog">
+              Каталог
+            </Link>
+          </nav>
         </div>
-      </section>
-      {/* END: PageTitle Section */}
 
-      {/* BEGIN: MainContent */}
-      <main className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-[16rem_1fr] gap-12">
+        <div className="flex items-center gap-3 lg:gap-4">
+          <div className="hidden lg:flex items-center bg-[#e7e9e5] rounded-full h-12 px-5 gap-2.5">
+            <span className="text-[#707a6e] text-base shrink-0 leading-none">⌕</span>
+            <input
+              className="bg-transparent border-none focus:ring-0 focus:outline-none text-base w-56 h-12 leading-none"
+              placeholder="Поиск по каталогу..."
+              type="search"
+              aria-label="Поиск по каталогу"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              onKeyDown={onSearchKeyDown}
+            />
+          </div>
+          <div className="flex gap-3 lg:gap-4 items-center">
+            <button
+              className="h-12 px-6 rounded-full bg-[#1f642e] text-white text-base font-bold leading-none inline-flex items-center justify-center shadow-lg shadow-[#1f642e]/20 hover:bg-[#195324] transition-colors"
+              type="button"
+            >
+              Корзина
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="pt-24 min-h-screen relative">
+        {/* Background Elements */}
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+          {/* Полукруги по краям (часть круга за пределами контейнера) */}
+          <div className="absolute top-24 -left-[28rem] w-[56rem] h-[56rem] bg-[#1f642e]/10 rounded-full blur-[110px] motion-reduce:hidden" />
+          <div className="absolute top-[28rem] -right-[32rem] w-[64rem] h-[64rem] bg-[#266b3b]/10 rounded-full blur-[130px] motion-reduce:hidden" />
+        </div>
+
+        <div className="relative z-10 max-w-[1600px] mx-auto px-6 lg:px-8 flex gap-8 lg:gap-12">
           {/* Sidebar Categories */}
-          <aside className="w-full" data-purpose="category-sidebar">
-            <h2 className="text-xl font-bold mb-6">Категории</h2>
-            <ul className="space-y-3">
-              {categoriesToShow.map((c) => {
-                const isActive = c.id === category;
-                return (
-                  <li key={c.id}>
+          <aside className="hidden lg:block h-[calc(100vh-6rem)] w-64 sticky top-24 left-0 bg-[#f3f4f0] rounded-3xl overflow-hidden">
+            <div className="flex flex-col gap-2 pt-10 h-full">
+              <div className="px-8 mb-6">
+                <h2 className="text-xl font-black text-[#1a1c1a]">Категории</h2>
+                <p className="text-xs text-[#707a6e] font-medium uppercase tracking-wider">Отборная подборка</p>
+              </div>
+
+              <nav className="space-y-1">
+                {categoriesToShow.map((c, idx) => {
+                  const isActive = c.id === category;
+                  return (
                     <button
+                      key={c.id}
                       className={[
-                        "w-full flex items-center justify-between p-3 rounded-lg transition-colors font-medium text-left",
-                        isActive ? "bg-[#52b788] text-white" : "hover:bg-gray-100",
+                        "w-full text-left py-4 px-8 flex items-center gap-3 text-sm transition-all duration-200",
+                        isActive
+                          ? "text-[#1f642e] font-bold bg-white rounded-r-full shadow-sm"
+                          : "text-stone-500 hover:translate-x-1 hover:text-[#1f642e]",
                       ].join(" ")}
                       onClick={() => {
                         setCategory(c.id);
@@ -303,312 +421,362 @@ export default function Catalog() {
                       }}
                       type="button"
                     >
-                      <span>{c.label}</span>
-                      <span
-                        className={[
-                          "text-xs px-2 py-0.5 rounded-full",
-                          isActive ? "bg-white text-[#52b788]" : "bg-gray-200 text-gray-600",
-                        ].join(" ")}
-                      >
-                        {categoryCounts[c.id] ?? 0}
-                      </span>
+                      <span className="flex-1">{c.label}</span>
+                      <span className="text-xs text-[#707a6e]">{categoryCounts[c.id] ?? 0}</span>
                     </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-12 p-6 bg-[#f1f8f4] rounded-2xl">
-              <h3 className="font-bold mb-2">Бесплатная доставка</h3>
-              <p className="text-sm text-gray-600 mb-4">При заказе от 100 BYN. Привезем в течение 2-х часов.</p>
-              <img
-                alt="Delivery"
-                className="w-full rounded-lg"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNcQznvUtzne59khVGSzAi_qsKBigXdeJAHaM-qOnxq0QHV8dVLTCeenUq05CSK_hxaSz59sBzlLgF6chLEsygSeF0fF_X5hrnExEzBsSW5BE4-IhcR3ddUR1qTxeZoIYEJX4MfrvoCGrN2JDU65h7Izd6_CM9Oi2KctR9XAQzTzCtWIHcK3KAsnaFMc9GqnvfHIO5IO3ONneyb4ZU35VN_Xu4aV_tYl5uiAjfgpCKOGJCc11n6jOrhVoEuo9TMZW19f_Lyfd1sSi2"
-              />
+                  );
+                })}
+              </nav>
+
+              <div className="mt-auto p-8">
+                <div className="bg-[#1f642e]/10 rounded-2xl p-4 relative overflow-hidden">
+                  <p className="text-xs font-bold text-[#1f642e] mb-1">Сезонная акция</p>
+                  <p className="text-sm text-[#40493f] leading-tight">Скидка 15% на всю зелень на этой неделе.</p>
+                </div>
+              </div>
             </div>
           </aside>
 
-          {/* Product Grid */}
-          <section className="flex-grow" data-purpose="product-grid-section">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
-              <div className="flex min-w-0 flex-col gap-2">
-                <p className="text-sm text-gray-500 break-words">
-                  Найдено: {filteredProducts.length} товара(ов) в категории «
-                  {categoriesToShow.find((c) => c.id === category)?.label ?? ""}»
+          {/* Main Catalog Content */}
+          <section className="flex-1 pb-20">
+            {/* Catalog Header */}
+            <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6 mb-12">
+              <div>
+                <h1 className="text-5xl font-black text-[#1a1c1a] tracking-tighter mb-2">Наш урожай</h1>
+                <p className="text-[#40493f] max-w-md">
+                  Экологично выращенные и вручную отобранные сезонные продукты — прямо с грядки к вашей двери.
                 </p>
-                <div className="max-w-md">
-                  <input
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#52b788] focus:border-transparent"
-                    placeholder="Поиск по названию или стране..."
-                    type="search"
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </div>
               </div>
-
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <span className="text-sm text-gray-600 shrink-0">Сортировать:</span>
-                <select
-                  className="sort-select min-w-0 flex-1 sm:flex-initial sm:min-w-[12rem] w-full sm:w-auto appearance-none bg-white border border-gray-200 hover:border-gray-300 text-sm font-semibold rounded-2xl px-5 py-2.5 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#52b788]/30 focus:border-transparent transition-colors"
-                  value={sort}
-                  onChange={(e) => {
-                    const value = e.target.value as typeof sort;
-                    setSort(value);
-                    setPage(1);
-                  }}
-                >
-                  <option value="default">По умолчанию</option>
-                  <option value="name">По названию</option>
-                  <option value="season">По сезону</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-              {pagedProducts.map((p) => (
-                <article
-                  key={p.id}
-                  className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl transition-shadow duration-300"
-                >
-                  <div className="relative h-64 overflow-hidden bg-gray-100">
-                    <img
-                      alt={p.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                      src={p.imageUrl || CATALOG_IMAGE_PLACEHOLDER}
-                    />
-                    {p.badge ? (
-                      <span
+              <div className="flex gap-4 items-center">
+                <div className="bg-[#e2e3df] px-6 py-3 rounded-full flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-[#707a6e]">Сортировка:</span>
+                  <div className="relative">
+                    <button
+                      ref={sortButtonRef}
+                      className="inline-flex items-center gap-2 bg-transparent text-[#1a1c1a] font-semibold pl-1 -ml-1 pr-1 rounded-full focus:outline-none focus:ring-2 focus:ring-[#1f642e]/20"
+                      type="button"
+                      aria-haspopup="menu"
+                      aria-expanded={sortMenuOpen}
+                      onClick={() => setSortMenuOpen((v) => !v)}
+                    >
+                      <span className="whitespace-nowrap">{sortLabel}</span>
+                      <svg
                         className={[
-                          "absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold",
-                          p.badge.className,
+                          "h-4 w-4 text-[#707a6e] transition-transform duration-200",
+                          sortMenuOpen ? "rotate-180" : "rotate-0",
                         ].join(" ")}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
                       >
-                        {p.badge.label}
-                      </span>
+                        <path
+                          fillRule="evenodd"
+                          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.24 4.5a.75.75 0 0 1-1.08 0l-4.24-4.5a.75.75 0 0 1 .02-1.06Z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+
+                    {sortMenuOpen ? (
+                      <div
+                        ref={sortMenuRef}
+                        role="menu"
+                        className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(16rem,calc(100vw-2.5rem))] max-h-[min(50vh,18rem)] overflow-auto rounded-2xl border border-[#1f642e]/10 bg-white/95 backdrop-blur-md shadow-2xl shadow-[#1f642e]/10"
+                      >
+                        <div className="p-2">
+                          {sortOptions.map((o) => {
+                            const active = o.value === sort;
+                            return (
+                              <button
+                                key={o.value}
+                                role="menuitemradio"
+                                aria-checked={active}
+                                type="button"
+                                className={[
+                                  "w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors",
+                                  active
+                                    ? "bg-[#1f642e] text-white shadow-sm shadow-[#1f642e]/20"
+                                    : "text-[#1a1c1a] hover:bg-[#e7e9e5]",
+                                ].join(" ")}
+                                onClick={() => {
+                                  const value = o.value as typeof sort;
+                                  setSort(value);
+                                  setPage(1);
+                                  setSortMenuOpen(false);
+                                }}
+                              >
+                                <span className="flex items-center justify-between gap-3">
+                                  <span>{o.label}</span>
+                                  {active ? (
+                                    <svg className="h-4 w-4 opacity-90" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42-.002L3.29 9.25a1 1 0 1 1 1.42-1.4l3.04 3.082 6.54-6.586a1 1 0 0 1 1.414-.006Z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  ) : (
+                                    <span className="h-4 w-4" aria-hidden="true" />
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ) : null}
                   </div>
-                  <div className="p-6">
-                    <h3 className="text-lg font-bold mb-1 group-hover:text-[#52b788] transition-colors">{p.name}</h3>
-                    <p className="text-sm text-gray-500 mb-4">Страна: {p.country}</p>
-                    <button className="w-full bg-[#f1f8f4] text-[#2d6a4f] py-3 rounded-xl font-bold hover:bg-[#2d6a4f] hover:text-white transition-colors">
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile search */}
+            <div className="lg:hidden mb-8">
+              <input
+                className="w-full bg-[#e7e9e5] rounded-full px-6 py-3 text-sm focus:ring-2 focus:ring-[#1f642e]/20 border border-transparent"
+                placeholder="Поиск по каталогу..."
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                onKeyDown={onSearchKeyDown}
+              />
+            </div>
+
+            {/* Product Grid: Asymmetric Layout */}
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {pagedProducts.map((p) => {
+                return (
+                  <article
+                    key={p.id}
+                    className="group bg-white rounded-[2rem] p-6 shadow-sm hover:shadow-xl hover:shadow-[#1f642e]/5 transition-all duration-500 flex flex-col h-full"
+                  >
+                    <div className="relative h-64 mb-6 rounded-2xl overflow-hidden bg-[#e2e3df]">
+                      <img
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out transform-gpu group-hover:scale-110"
+                        alt={p.name}
+                        loading="lazy"
+                        src={p.imageUrl || CATALOG_IMAGE_PLACEHOLDER}
+                      />
+                      {p.badge ? (
+                        <div className="absolute top-4 left-4 bg-[#736f60] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-sm">
+                          {p.badge.label}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex justify-between items-start mb-2 gap-4">
+                      <h3 className="text-2xl font-bold group-hover:text-[#1f642e] transition-colors leading-tight max-h-[3.5rem] overflow-hidden">
+                        {p.name}
+                      </h3>
+                      <span className="text-xl font-black text-[#1f642e] whitespace-nowrap">
+                        {formatPrice(p) === "—" ? "—" : `${formatPrice(p)} BYN`}
+                      </span>
+                    </div>
+                    <p className="text-[#40493f] text-sm mb-6 flex-grow min-h-[2.5rem] max-h-[2.5rem] overflow-hidden">
+                      {p.country ? `Страна: ${p.country}` : "Свежий сезонный продукт из нашей коллекции."}
+                    </p>
+                    <button
+                      className="w-full bg-[#a8f0b3] text-[#2a703f] py-3 rounded-full font-bold hover:bg-[#1f642e] hover:text-white transition-all duration-300"
+                      type="button"
+                    >
                       В корзину
                     </button>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
-          </section>
 
-          <div className="mt-16 w-full lg:col-span-2 flex max-w-full flex-nowrap justify-start items-center gap-1 sm:justify-center sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
-            <button
-              className="w-10 h-10 shrink-0 rounded-lg hover:bg-gray-100 font-bold disabled:opacity-40"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              type="button"
-            >
-              ←
-            </button>
-            {Array.from({ length: pageCount }).map((_, i) => {
-              const n = i + 1;
-              const isActive = n === currentPage;
-              return (
+            {/* Pagination (оставляем функциональность, стилизуем под макет) */}
+            <div className="mt-14 flex justify-center w-full">
+              <div className="flex max-w-full flex-nowrap justify-center items-center gap-2 overflow-x-auto pb-2">
                 <button
-                  key={n}
-                  className={[
-                    "w-10 h-10 shrink-0 rounded-lg font-bold",
-                    isActive ? "bg-[#2d6a4f] text-white" : "hover:bg-gray-100",
-                  ].join(" ")}
-                  onClick={() => setPage(n)}
+                  className="w-10 h-10 shrink-0 rounded-full bg-[#e2e3df] hover:bg-[#d9dad7] font-bold disabled:opacity-40"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
                   type="button"
                 >
-                  {n}
+                  ←
                 </button>
-              );
-            })}
-            <button
-              className="w-10 h-10 shrink-0 rounded-lg hover:bg-gray-100 font-bold disabled:opacity-40"
-              disabled={currentPage >= pageCount}
-              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              type="button"
-            >
-              →
-            </button>
-          </div>
+                {Array.from({ length: pageCount }).map((_, i) => {
+                  const n = i + 1;
+                  const isActive = n === currentPage;
+                  return (
+                    <button
+                      key={n}
+                      className={[
+                        "w-10 h-10 shrink-0 rounded-full font-bold",
+                        isActive ? "bg-[#1f642e] text-white" : "bg-[#e2e3df] hover:bg-[#d9dad7]",
+                      ].join(" ")}
+                      onClick={() => setPage(n)}
+                      type="button"
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+                <button
+                  className="w-10 h-10 shrink-0 rounded-full bg-[#e2e3df] hover:bg-[#d9dad7] font-bold disabled:opacity-40"
+                  disabled={currentPage >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  type="button"
+                >
+                  →
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
-      </main>
-      {/* END: MainContent */}
 
-      {/* BEGIN: NewsletterCTA */}
-      <section className="container mx-auto px-4 mb-24">
-        <div className="relative bg-[#1b4332] rounded-[2.5rem] p-8 md:p-16 overflow-hidden text-center">
-          <div className="absolute top-0 left-0 w-64 h-64 bg-[#2d6a4f] rounded-full -translate-x-1/2 -translate-y-1/2 opacity-50" />
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#2d6a4f] rounded-full translate-x-1/4 translate-y-1/4 opacity-30" />
-          <div className="relative z-10 max-w-2xl mx-auto">
-            <h2 className="text-white text-3xl md:text-5xl font-bold mb-6">Готовы попробовать самое свежее?</h2>
-            <p className="text-green-100 mb-10 text-lg">Подпишитесь на нашу рассылку и получите скидку 10% на ваш первый заказ!</p>
-            <form className="flex flex-col md:flex-row gap-4">
-              <input
-                className="flex-grow px-6 py-4 rounded-xl focus:ring-2 focus:ring-primary border-none text-gray-800"
-                placeholder="Ваш e-mail"
-                type="email"
-              />
-              <button
-                className="bg-primary text-white px-10 py-4 rounded-xl font-bold hover:bg-forest-green transition-colors whitespace-nowrap"
-                type="submit"
-              >
-                Подписаться
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-      {/* END: NewsletterCTA */}
-
-      {/* BEGIN: MainFooter */}
-      <footer className="bg-gray-50 pt-20 pb-10">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
-            <div>
-              <div className="flex items-center space-x-2 mb-6">
-                <div className="w-8 h-8 bg-[#2d6a4f] rounded flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">С</span>
+        <footer className="bg-gray-50 pt-20 pb-10 border-t border-gray-200" id="about">
+          <div className="container mx-auto px-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+              <div>
+                <div className="flex items-center space-x-2 mb-6">
+                  <div className="w-8 h-8 bg-forest-green rounded-md flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </div>
+                  <span className="text-xl font-bold text-forest-green">Садовка</span>
                 </div>
-                <span className="font-bold text-xl tracking-tight">Садовка</span>
+                <p className="text-gray-500 text-sm leading-relaxed mb-6">
+                  Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
+                </p>
+                <div className="flex space-x-4">
+                  <a className="text-gray-400 hover:text-forest-green" href="#">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                    </svg>
+                  </a>
+                  <a className="text-gray-400 hover:text-forest-green" href="#">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.791-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.209-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                    </svg>
+                  </a>
+                </div>
               </div>
-              <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
-              </p>
-              <div className="flex space-x-4">
-                <a
-                  className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-[#52b788] hover:text-white transition-colors"
-                  href="#"
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-                  </svg>
-                </a>
-                <a
-                  className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-[#52b788] hover:text-white transition-colors"
-                  href="#"
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z" />
-                  </svg>
-                </a>
+              <div>
+                <h4 className="font-bold text-forest-green mb-6">Каталог</h4>
+                <ul className="space-y-4 text-sm text-gray-500">
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Овощи
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Фрукты
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Зелень и травы
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Ягоды
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-bold text-forest-green mb-6">О компании</h4>
+                <ul className="space-y-4 text-sm text-gray-500">
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      История бренда
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Поставщики и качество
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Условия доставки
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-vibrant-orange" href="#">
+                      Контакты
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-bold text-forest-green mb-6">Контакты</h4>
+                <ul className="space-y-4 text-sm text-gray-500">
+                  <li className="leading-relaxed">
+                    ООО &quot;Миксголдфрукт&quot;
+                    <br />
+                    УНП 193855188
+                    <br />
+                    Юридический адрес У Л. ВЕРЫ ХОРУЖЕЙ, ДОМ 6А, ОФ. 117, 220100
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    <a className="hover:text-forest-green" href="tel:+375297606955">
+                      +375(29)760-69-55
+                    </a>
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    <a className="hover:text-forest-green" href="mailto:miksgoldfruct@mail.ru">
+                      miksgoldfruct@mail.ru
+                    </a>
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Ежедневно с 8:00 до 22:00
+                  </li>
+                </ul>
               </div>
             </div>
-
-            <div>
-              <h3 className="font-bold mb-6 uppercase text-sm tracking-widest">Каталог</h3>
-              <ul className="space-y-4 text-gray-600 text-sm">
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Овощи
-                  </a>
-                </li>
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Фрукты
-                  </a>
-                </li>
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Зелень и травы
-                  </a>
-                </li>
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Ягоды
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-6 uppercase text-sm tracking-widest">О компании</h3>
-              <ul className="space-y-4 text-gray-600 text-sm">
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    История бренда
-                  </a>
-                </li>
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Поставщики и качество
-                  </a>
-                </li>
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Условия доставки
-                  </a>
-                </li>
-                <li>
-                  <a className="hover:text-[#52b788] transition-colors" href="#">
-                    Контакты
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-6 uppercase text-sm tracking-widest">Контакты</h3>
-              <ul className="space-y-4 text-gray-600 text-sm">
-                <li className="flex items-center space-x-3">
-                  <svg className="w-5 h-5 text-[#52b788]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                  <span>8 800 555-35-35</span>
-                </li>
-                <li className="flex items-center space-x-3">
-                  <svg className="w-5 h-5 text-[#52b788]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                  <span>hello@greenharvest.ru</span>
-                </li>
-                <li className="flex items-start space-x-3">
-                  <svg className="w-5 h-5 text-[#52b788] mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                  <span>Ежедневно с 8:00 до 22:00</span>
-                </li>
-              </ul>
+            <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
+              <p>© 2026 Садовка. Все права защищены.</p>
+              <div className="flex space-x-6 mt-4 md:mt-0">
+                <Link className="hover:text-forest-green" to="/privacy">
+                  Политика конфиденциальности
+                </Link>
+                <Link className="hover:text-forest-green" to="/offer">
+                  Оферта
+                </Link>
+              </div>
             </div>
           </div>
-
-          <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 space-y-4 md:space-y-0">
-            <p>© 2026 Садовка. Все права защищены.</p>
-            <div className="flex space-x-6">
-              <Link className="hover:text-[#52b788]" to="/privacy">
-                Политика конфиденциальности
-              </Link>
-              <Link className="hover:text-[#52b788]" to="/offer">
-                Оферта
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
-      {/* END: MainFooter */}
+        </footer>
+      </main>
     </div>
   );
 }

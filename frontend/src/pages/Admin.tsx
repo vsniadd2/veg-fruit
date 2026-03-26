@@ -11,10 +11,11 @@ const API_BASE_URL = "http://localhost:3001";
 const ACTIVE_TAB_KEY = "gh_admin_active_tab_v1";
 const CATALOG_CATEGORY_ID_KEY = "gh_admin_catalog_category_id_v1";
 
-type AdminTab = "dashboard" | "catalog" | "orders" | "suppliers" | "reports";
+type AdminTab = "dashboard" | "homeCards" | "catalog" | "orders" | "suppliers" | "reports";
 
 const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   dashboard: "Панель",
+  homeCards: "Карточки главной",
   catalog: "Каталог",
   orders: "Заказы",
   suppliers: "Поставщики",
@@ -33,6 +34,14 @@ type Product = {
   categoryName: string | null;
   inStock?: boolean;
   badge?: { kind: string; label: string } | null;
+};
+type HomeCard = {
+  slot: number;
+  title: string;
+  subtitle: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  imageUrl: string | null;
 };
 
 const imageObjectUrlCache = new Map<string, string>();
@@ -120,6 +129,28 @@ function IconGrid(props: { className?: string }) {
   return (
     <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconImageStack(props: { className?: string }) {
+  return (
+    <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M8 10h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="m3 16 4-4 3 3 2-2 3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M17 8h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -287,6 +318,50 @@ function IconTrash(props: { className?: string }) {
   );
 }
 
+function IconHelp(props: { className?: string }) {
+  return (
+    <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 18h.01M9.5 9a2.5 2.5 0 1 1 4 2c-.9.6-1.5 1.1-1.5 2v.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function IconPlant(props: { className?: string }) {
+  return (
+    <svg className={props.className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 21v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 14c-5 0-8-3.5-8-8 4.5 0 8 3 8 8Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 14c5 0 8-3.5 8-8-4.5 0-8 3-8 8Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M7 21h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconArrowBack(props: { className?: string }) {
+  return (
+    <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function getIsAuthed(): boolean {
   try {
     return sessionStorage.getItem(AUTH_KEY) === "1";
@@ -306,6 +381,7 @@ function setAuthed(value: boolean) {
 function parseAdminTab(value: string | null): AdminTab | null {
   switch (value) {
     case "dashboard":
+    case "homeCards":
     case "catalog":
     case "orders":
     case "suppliers":
@@ -440,6 +516,11 @@ export default function Admin() {
 
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+  const [homeCards, setHomeCards] = useState<HomeCard[]>([]);
+  const [isLoadingHomeCards, setIsLoadingHomeCards] = useState(false);
+  const [savingHomeCardSlot, setSavingHomeCardSlot] = useState<number | null>(null);
+  const [uploadingHomeCardSlot, setUploadingHomeCardSlot] = useState<number | null>(null);
+  const [homeCardSaveNotice, setHomeCardSaveNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const profileImageUrl = useMemo(
     () =>
@@ -593,6 +674,56 @@ export default function Admin() {
     setRecentProducts(data.items ?? []);
   };
 
+  const loadHomeCards = async () => {
+    setIsLoadingHomeCards(true);
+    try {
+      const data = await adminFetchJson<{ ok: boolean; items: HomeCard[] }>("/api/admin/home-cards");
+      const rows = [...(data.items ?? [])].sort((a, b) => Number(a.slot) - Number(b.slot));
+      setHomeCards(rows);
+    } finally {
+      setIsLoadingHomeCards(false);
+    }
+  };
+
+  const saveHomeCard = async (card: HomeCard) => {
+    setSavingHomeCardSlot(card.slot);
+    try {
+      await adminFetchJson<{ ok: boolean; item: HomeCard }>(`/api/admin/home-cards/${card.slot}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: card.title,
+          subtitle: card.subtitle,
+          categoryId: card.categoryId,
+        }),
+      });
+      await loadHomeCards();
+    } finally {
+      setSavingHomeCardSlot(null);
+    }
+  };
+
+  const uploadHomeCardImage = async (slot: number, file: File) => {
+    if (file.size > 5 * 1024 * 1024) throw new Error("file_too_large");
+    if (!file.type.startsWith("image/")) throw new Error("invalid_file_type");
+    setUploadingHomeCardSlot(slot);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await authorizedFetch(`/api/admin/home-cards/${slot}/image`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `http_${res.status}`);
+      }
+      await loadHomeCards();
+    } finally {
+      setUploadingHomeCardSlot(null);
+    }
+  };
+
   const loadCatalogProducts = async (categoryId?: string) => {
     setIsLoadingCatalog(true);
     try {
@@ -708,6 +839,7 @@ export default function Admin() {
     if (isCheckingAuth) return;
     void loadCategories().catch(() => {});
     void loadRecentProducts().catch(() => {});
+    void loadHomeCards().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, isCheckingAuth]);
 
@@ -837,26 +969,96 @@ export default function Admin() {
     };
   }, []);
 
-  return (
-    <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
-      {!isAuthed ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary p-2 rounded-lg text-white">
-                  <IconLeaf className="w-5 h-5" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight">Админ-панель Садовка</h1>
-                  <p className="text-sm text-slate-500">Введите логин и пароль</p>
-                </div>
+  if (!isAuthed) {
+    const verdantMeshBg: React.CSSProperties = {
+      backgroundColor: "#f7fbf1",
+      backgroundImage: [
+        "radial-gradient(at 0% 0%, rgba(13, 96, 27, 0.05) 0px, transparent 50%)",
+        "radial-gradient(at 100% 0%, rgba(202, 236, 194, 0.2) 0px, transparent 50%)",
+        "radial-gradient(at 100% 100%, rgba(13, 96, 27, 0.03) 0px, transparent 50%)",
+        "radial-gradient(at 0% 100%, rgba(202, 236, 194, 0.15) 0px, transparent 50%)",
+        "radial-gradient(at 50% 50%, rgba(255, 255, 255, 0.5) 0px, transparent 50%)",
+      ].join(", "),
+    };
+
+    return (
+      <div className="h-screen overflow-hidden relative text-[#181d17] font-display" style={verdantMeshBg}>
+        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+          {/* Soft background circles (as in mock) */}
+          <div className="absolute -top-24 -right-24 w-[520px] h-[520px] rounded-full bg-[#0d601b]/10" />
+          <div className="absolute -bottom-24 -left-24 w-[520px] h-[520px] rounded-full bg-[#486645]/10" />
+
+          {/* Organic blobs (from 1-admin.txt) */}
+          <svg
+            className="absolute top-[-10%] right-[-5%] w-[60%] h-[60%] opacity-[0.07] text-[#0d601b] animate-[float_20s_ease-in-out_infinite]"
+            viewBox="0 0 200 200"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M44.7,-76.4C58.1,-69.2,69.2,-58.1,77.3,-44.7C85.4,-31.3,90.5,-15.7,91.2,0.4C91.9,16.5,88.3,33,79.8,47.1C71.3,61.2,57.9,72.9,42.7,80.4C27.5,87.9,10.5,91.2,-6.1,91.8C-22.7,92.4,-38.9,90.3,-53.2,82.4C-67.5,74.5,-79.9,60.8,-87.4,45.2C-94.9,29.6,-97.5,12.1,-95.1,-4.1C-92.7,-20.3,-85.3,-35.2,-74.8,-47.9C-64.3,-60.6,-50.7,-71.1,-36.4,-77.8C-22.1,-84.5,-7.1,-87.4,8.1,-88.8C23.3,-90.2,31.3,-83.6,44.7,-76.4Z"
+              fill="currentColor"
+              transform="translate(100 100)"
+            />
+          </svg>
+          <svg
+            className="absolute bottom-[-15%] left-[-10%] w-[70%] h-[70%] opacity-[0.04] text-[#486645] animate-[float_20s_ease-in-out_infinite]"
+            style={{ animationDelay: "-5s" }}
+            viewBox="0 0 200 200"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M37.5,-64.7C48.4,-57.8,56.9,-46.8,63.6,-34.8C70.3,-22.8,75.2,-9.8,74.9,3.1C74.6,16,69.1,28.8,60.9,39.6C52.7,50.4,41.8,59.2,29.4,65.3C17,71.4,3,74.8,-11.5,73.6C-26,72.4,-41,66.6,-52.8,56.7C-64.6,46.8,-73.2,32.8,-76.9,17.7C-80.6,2.6,-79.4,-13.6,-72.7,-27.4C-66,-41.2,-53.8,-52.6,-40.4,-58.5C-27,-64.4,-12.4,-64.8,1.1,-66.7C14.6,-68.6,26.6,-71.6,37.5,-64.7Z"
+              fill="currentColor"
+              transform="translate(100 100)"
+            />
+          </svg>
+        </div>
+
+        <header className="fixed top-0 w-full flex justify-between items-center px-6 sm:px-8 h-16 bg-transparent z-50">
+          <div className="flex items-center gap-2">
+            <div className="bg-[#0d601b] p-1.5 rounded-xl flex items-center justify-center text-white">
+              <IconPlant className="w-5 h-5" />
+            </div>
+            <span className="text-xl font-bold text-[#0d601b] tracking-tight">Verdant Gallery</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              className="text-[#40493d] hover:bg-white/50 transition-colors p-2 rounded-full active:scale-95 duration-200"
+              type="button"
+              aria-label="Помощь"
+            >
+              <IconHelp className="w-6 h-6" />
+            </button>
+          </div>
+        </header>
+
+        <main
+          className="flex items-center justify-center px-4 sm:px-6"
+          style={{ height: "calc(100vh - 8rem)" }}
+        >
+          <div
+            className={[
+              "w-[min(480px,92vw)]",
+              "max-h-[calc(100vh-9rem)]",
+              "p-7 sm:p-10",
+              "rounded-[2.5rem]",
+              "shadow-[0_40px_100px_rgba(13,96,27,0.08)]",
+              "flex flex-col items-center",
+              "border border-white/40 bg-white/70 backdrop-blur-[24px]",
+            ].join(" ")}
+          >
+            <div className="mb-10 text-center">
+              <div className="bg-[#0d601b]/10 w-16 h-16 rounded-full flex items-center justify-center mb-6 mx-auto text-[#0d601b]">
+                <IconPlant className="w-9 h-9" />
               </div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-[#181d17] mb-2">Админ-панель Садовка</h1>
+              <p className="text-[#40493d] text-base">Введите логин и пароль</p>
             </div>
 
             <form
-              className="p-6 space-y-4"
+              className="w-full space-y-6"
               onSubmit={async (e) => {
                 e.preventDefault();
                 setError(null);
@@ -888,21 +1090,23 @@ export default function Admin() {
                 }
               }}
             >
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Логин</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#40493d] ml-1">Логин</label>
                 <input
                   autoComplete="username"
-                  className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                  placeholder="Введите логин"
+                  className="w-full bg-white/50 border border-[#c0c9ba]/30 rounded-xl px-5 py-4 text-[#181d17] focus:bg-white focus:ring-1 focus:ring-[#0d601b] focus:outline-none transition-all duration-300 placeholder:text-[#707a6c]"
+                  placeholder="Введите ваш логин"
+                  type="text"
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Пароль</label>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#40493d] ml-1">Пароль</label>
                 <input
                   autoComplete="current-password"
-                  className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                  className="w-full bg-white/50 border border-[#c0c9ba]/30 rounded-xl px-5 py-4 text-[#181d17] focus:bg-white focus:ring-1 focus:ring-[#0d601b] focus:outline-none transition-all duration-300 placeholder:text-[#707a6c]"
                   placeholder="Введите пароль"
                   type="password"
                   value={password}
@@ -911,21 +1115,23 @@ export default function Admin() {
               </div>
 
               {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
+                <div className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-800">
                   {error}
                 </div>
               ) : null}
 
               <button
-                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
+                className="w-full text-white font-bold py-4 rounded-xl active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#0d601b]/20 text-lg mt-4 bg-[linear-gradient(135deg,#0d601b_0%,#2d7931_100%)] disabled:opacity-60"
                 disabled={isCheckingAuth}
                 type="submit"
               >
                 Войти
               </button>
+            </form>
 
+            <div className="mt-8 flex flex-col items-center gap-6 w-full">
               <button
-                className="w-full text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
+                className="text-[#0d601b] font-medium hover:bg-[#0d601b]/5 px-4 py-2 rounded-lg transition-colors text-sm"
                 onClick={() => {
                   setLogin("");
                   setPassword("");
@@ -935,19 +1141,47 @@ export default function Admin() {
               >
                 Очистить
               </button>
-
+              <div className="w-full h-px bg-[#c0c9ba]/20" />
               <button
-                className="w-full border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3.5 rounded-xl transition-all"
-                onClick={() => navigate("/")}
+                className="flex items-center gap-2 text-[#40493d] hover:text-[#0d601b] transition-colors font-semibold group"
                 type="button"
+                onClick={() => navigate("/")}
               >
+                <IconArrowBack className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 Назад на главную
               </button>
-            </form>
+            </div>
           </div>
-        </div>
-      ) : null}
+        </main>
 
+        <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
+          <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Садовка». Все права защищены.</span>
+          <div className="flex gap-6">
+            <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
+              Политика конфиденциальности
+            </a>
+            <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
+              Условия использования
+            </a>
+            <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="/">
+              На сайт
+            </a>
+          </div>
+        </footer>
+
+        <style>{`
+          @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, 4%) rotate(2deg); }
+            66% { transform: translate(-1%, 2%) rotate(-1deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
       {isAuthed && !isCheckingAuth ? (
         <div className="flex min-h-screen">
           {/* Sidebar */}
@@ -972,6 +1206,20 @@ export default function Admin() {
               >
                 <IconGrid className="w-5 h-5" />
                 <span className="text-sm font-medium">Панель</span>
+              </a>
+              <a
+                className={[
+                  "flex items-center gap-3 px-3 py-2 rounded-xl transition-colors",
+                  activeTab === "homeCards" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                ].join(" ")}
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab("homeCards");
+                }}
+              >
+                <IconImageStack className="w-5 h-5" />
+                <span className="text-sm font-medium">Карточки главной</span>
               </a>
               <a
                 className={[
@@ -1033,7 +1281,7 @@ export default function Admin() {
             <div className="p-4 border-t border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3 px-3 py-2">
                 <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden">
-                  <img alt="Admin Profile" className="w-full h-full object-cover" src={profileImageUrl} />
+                  <img alt="Профиль администратора" className="w-full h-full object-cover" src={profileImageUrl} />
                 </div>
                 <div>
                 <p className="text-sm font-semibold">Админ</p>
@@ -1072,6 +1320,21 @@ export default function Admin() {
                 >
                   <IconGrid className="h-5 w-5" />
                   <span className="text-sm font-medium">Панель</span>
+                </a>
+                <a
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
+                    activeTab === "homeCards" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
+                  ].join(" ")}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActiveTab("homeCards");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <IconImageStack className="h-5 w-5" />
+                  <span className="text-sm font-medium">Карточки главной</span>
                 </a>
                 <a
                   className={[
@@ -1150,6 +1413,29 @@ export default function Admin() {
 
           {/* Main Content */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            {homeCardSaveNotice ? (
+              <div className="fixed inset-0 z-[11000] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/35 backdrop-blur-[1px]" onClick={() => setHomeCardSaveNotice(null)} />
+                <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl p-6">
+                  <h4
+                    className={[
+                      "text-lg font-bold mb-2",
+                      homeCardSaveNotice.kind === "success" ? "text-emerald-700" : "text-red-700",
+                    ].join(" ")}
+                  >
+                    {homeCardSaveNotice.kind === "success" ? "Успешно" : "Ошибка"}
+                  </h4>
+                  <p className="text-sm text-slate-600">{homeCardSaveNotice.text}</p>
+                  <button
+                    className="mt-5 w-full rounded-xl bg-primary hover:bg-primary/90 text-white font-bold py-2.5 transition-colors"
+                    type="button"
+                    onClick={() => setHomeCardSaveNotice(null)}
+                  >
+                    Ок
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-sm dark:border-slate-800 dark:bg-background-dark/80 sm:px-6 lg:px-8">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <button
@@ -1745,6 +2031,155 @@ export default function Admin() {
                     </div>
                   ) : null}
                 </>
+              ) : activeTab === "homeCards" ? (
+                <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                  <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold">Карточки главной</h3>
+                      <p className="text-slate-500 text-sm">Ровно 4 карточки: заголовок, второй текст, категория и изображение.</p>
+                    </div>
+                    <button
+                      className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors"
+                      onClick={() => void loadHomeCards()}
+                      type="button"
+                    >
+                      {isLoadingHomeCards ? "Загрузка..." : "Обновить"}
+                    </button>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {homeCards.map((card) => (
+                      <form
+                        key={card.slot}
+                        className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 md:p-5 space-y-4"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setError(null);
+                          if (!card.title.trim() || !card.subtitle.trim() || !card.categoryId) {
+                            setError(`Заполните все поля для карточки #${card.slot}.`);
+                            return;
+                          }
+                          try {
+                            await saveHomeCard(card);
+                            setHomeCardSaveNotice({
+                              kind: "success",
+                              text: `Карточка #${card.slot} успешно сохранена.`,
+                            });
+                          } catch (err) {
+                            const message = String(err);
+                            if (message.includes("category_not_found")) {
+                              setError(`Категория карточки #${card.slot} не найдена.`);
+                              setHomeCardSaveNotice({
+                                kind: "error",
+                                text: `Не удалось сохранить карточку #${card.slot}: категория не найдена.`,
+                              });
+                            } else {
+                              setError(`Не удалось сохранить карточку #${card.slot}.`);
+                              setHomeCardSaveNotice({
+                                kind: "error",
+                                text: `Не удалось сохранить карточку #${card.slot}. Проверьте поля и повторите.`,
+                              });
+                            }
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-base">Карточка #{card.slot}</h4>
+                          <span className="text-xs text-slate-500">{card.categoryName ?? "Без категории"}</span>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5">Заголовок</label>
+                          <input
+                            className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                            value={card.title}
+                            onChange={(e) =>
+                              setHomeCards((prev) => prev.map((x) => (x.slot === card.slot ? { ...x, title: e.target.value } : x)))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5">Второй текст</label>
+                          <input
+                            className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                            value={card.subtitle}
+                            onChange={(e) =>
+                              setHomeCards((prev) =>
+                                prev.map((x) => (x.slot === card.slot ? { ...x, subtitle: e.target.value } : x)),
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5">Категория перехода</label>
+                          <select
+                            className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                            value={card.categoryId ?? ""}
+                            onChange={(e) =>
+                              setHomeCards((prev) =>
+                                prev.map((x) => (x.slot === card.slot ? { ...x, categoryId: e.target.value || null } : x)),
+                              )
+                            }
+                          >
+                            <option value="">Выберите категорию</option>
+                            {categories.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium">Изображение</label>
+                          <div className="h-36 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            {card.imageUrl ? (
+                              <AdminProductImage
+                                src={card.imageUrl}
+                                alt={card.title || `Карточка ${card.slot}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xs text-slate-500">Нет изображения</div>
+                            )}
+                          </div>
+                          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors cursor-pointer">
+                            <IconUpload className="w-4 h-4" />
+                            {uploadingHomeCardSlot === card.slot ? "Загрузка..." : "Загрузить фото"}
+                            <input
+                              accept="image/*"
+                              className="hidden"
+                              type="file"
+                              onChange={(e) => {
+                                const input = e.currentTarget;
+                                const file = e.target.files?.[0] ?? null;
+                                if (!file) return;
+                                setError(null);
+                                void (async () => {
+                                  try {
+                                    await uploadHomeCardImage(card.slot, file);
+                                  } catch (err) {
+                                    const message = String(err);
+                                    if (message.includes("file_too_large")) setError("Файл слишком большой. Максимум 5 МБ.");
+                                    else if (message.includes("invalid_file_type")) setError("Можно загрузить только изображение.");
+                                    else setError(`Не удалось загрузить изображение для карточки #${card.slot}.`);
+                                  } finally {
+                                    // Если элемент уже размонтирован, value сбрасывать нельзя.
+                                    if (input && input.isConnected) input.value = "";
+                                  }
+                                })();
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <button
+                          className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
+                          disabled={savingHomeCardSlot === card.slot}
+                          type="submit"
+                        >
+                          {savingHomeCardSlot === card.slot ? "Сохранение..." : "Сохранить карточку"}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                </section>
               ) : activeTab === "catalog" ? (
                 <div className="space-y-6">
                   <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">

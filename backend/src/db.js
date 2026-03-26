@@ -87,5 +87,27 @@ export async function initDb() {
   await pool.query(`create index if not exists idx_suppliers_next_delivery on suppliers(next_delivery_at);`);
   await pool.query(`create index if not exists idx_suppliers_product_tags on suppliers using gin (product_tags);`);
   await pool.query(`create index if not exists idx_supplier_history_supplier on supplier_delivery_history(supplier_id);`);
+
+  await pool.query(`
+    create table if not exists home_cards (
+      slot smallint primary key check (slot between 1 and 4),
+      title text not null default '',
+      subtitle text not null default '',
+      category_id uuid null references categories(id) on delete restrict,
+      image_data bytea null,
+      image_mime text null,
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pool.query(`create index if not exists idx_home_cards_category_id on home_cards(category_id);`);
+  await pool.query(`
+    insert into home_cards (slot, title, subtitle)
+    values
+      (1, 'Сезонные фрукты', 'От 120 BYN/кг'),
+      (2, 'Экзотика', 'От 350 BYN/шт'),
+      (3, 'Наборы для салата', 'От 450 BYN/набор'),
+      (4, 'Овощи', 'От 85 BYN/кг')
+    on conflict (slot) do nothing;
+  `);
 }
 
