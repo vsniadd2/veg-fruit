@@ -2,12 +2,19 @@ import pg from "pg";
 
 const { Pool } = pg;
 
+function envInt(name, fallback) {
+  const v = process.env[name];
+  if (!v) return fallback;
+  const n = Number.parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export const pool = new Pool({
-  host: "localhost",
-  port: 5432,
-  database: "veg_fruit",
-  user: "veg_fruit",
-  password: "veg_fruit_password",
+  host: process.env.PGHOST ?? "localhost",
+  port: envInt("PGPORT", 5432),
+  database: process.env.PGDATABASE ?? "veg_fruit",
+  user: process.env.PGUSER ?? "veg_fruit",
+  password: process.env.PGPASSWORD ?? "veg_fruit_password",
 });
 
 export async function initDb() {

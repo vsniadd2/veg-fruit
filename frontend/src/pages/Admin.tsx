@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { AdminSuppliers } from "./admin/AdminSuppliers";
 
@@ -1451,6 +1451,19 @@ export default function Admin() {
                 <h2 className="truncate text-base font-semibold sm:text-lg">{ADMIN_TAB_LABELS[activeTab]}</h2>
               </div>
               <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+                <Link
+                  className="hidden items-center gap-2 rounded-xl px-3 py-2 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 sm:inline-flex"
+                  to="/"
+                >
+                  На главную
+                </Link>
+                <Link
+                  aria-label="На главную"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 sm:hidden"
+                  to="/"
+                >
+                  <span className="text-lg leading-none">⌂</span>
+                </Link>
                 <button
                   className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                   onClick={() => {

@@ -18,45 +18,53 @@ services:
       retries: 10
 
   backend:
-    build:
-      context: ./backend
+    image: node:20-alpine
     container_name: veg_fruit_backend
+    working_dir: /app
+    command: sh -lc "npm ci && npm run dev"
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3001
 
-      # DB connection for node-postgres (pg)
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-veg_fruit}
       PGUSER: ${POSTGRES_USER:-veg_fruit}
       PGPASSWORD: ${POSTGRES_PASSWORD:-veg_fruit_password}
 
-      # Admin auth (поменяйте на свои значения)
       ADMIN_LOGIN: ${ADMIN_LOGIN:-fruit}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-1234}
-      JWT_SECRET: ${JWT_SECRET:-change_me_prod_jwt_secret}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_prod_jwt_refresh_secret}
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_jwt_refresh_secret_change_me}
 
-      # CORS для админки/сайта (добавьте свой домен/айпи)
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173,http://178.172.201.107}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
 
-  web:
-    build:
-      context: ./frontend
-    container_name: veg_fruit_web
+  frontend:
+    image: node:20-alpine
+    container_name: veg_fruit_frontend
+    working_dir: /app
+    command: sh -lc "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
     restart: unless-stopped
+    environment:
+      NODE_ENV: development
     ports:
-      - "${WEB_PORT:-80}:80"
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 
 volumes:
   pg_data:
     name: veg_fruit_pg_data
-
 

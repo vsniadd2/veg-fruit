@@ -9,9 +9,17 @@ import { registerSuppliersAdminRoutes } from "./suppliersAdminRoutes.js";
 const app = express();
 
 app.use(express.json());
+
+const corsOrigins = String(
+  process.env.CORS_ORIGINS ?? "http://127.0.0.1:5173,http://localhost:5173",
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: ["http://127.0.0.1:5173", "http://localhost:5173"],
+    origin: corsOrigins,
   }),
 );
 
@@ -702,7 +710,7 @@ app.post("/api/admin/home-cards/:slot/image", upload.single("image"), async (req
 
 registerSuppliersAdminRoutes(app, { pool, requireAdmin });
 
-const PORT = 3001;
+const PORT = Number.parseInt(process.env.PORT ?? "3001", 10) || 3001;
 
 initDb()
   .then(() => {
