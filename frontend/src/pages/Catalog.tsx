@@ -24,7 +24,7 @@ const CATALOG_IMAGE_PLACEHOLDER =
   );
 
 export default function Catalog() {
-  const API_BASE_URL = "http://localhost:3001";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
   const [searchParams] = useSearchParams();
 
   const [query, setQuery] = useState("");

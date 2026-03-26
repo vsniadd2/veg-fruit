@@ -6,7 +6,9 @@ import { AdminSuppliers } from "./admin/AdminSuppliers";
 const AUTH_KEY = "gh_admin_authed_v1";
 const ACCESS_TOKEN_KEY = "gh_admin_access_token_v1";
 const REFRESH_TOKEN_KEY = "gh_admin_refresh_token_v1";
-const API_BASE_URL = "http://localhost:3001";
+// In production we proxy `/api` via nginx (same-origin), so default is empty string.
+// In local dev you can set VITE_API_BASE_URL=http://localhost:3001
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const ACTIVE_TAB_KEY = "gh_admin_active_tab_v1";
 const CATALOG_CATEGORY_ID_KEY = "gh_admin_catalog_category_id_v1";
