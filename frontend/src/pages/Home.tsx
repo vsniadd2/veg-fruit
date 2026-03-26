@@ -722,11 +722,11 @@ export default function Home() {
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400 gap-2">
+          <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-3 md:gap-6">
             <p>© 2026 Садовка. Все права защищены.</p>
             <span className="text-gray-300 hidden md:inline">•</span>
-            <p className="text-gray-400">Версия 26.03.2026</p>
-            <div className="flex space-x-6 mt-4 md:mt-0">
+            <p className="text-gray-400">Версия 26.03.2026-v1</p>
+            <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
               <Link className="hover:text-forest-green" to="/privacy">
                 Политика конфиденциальности
               </Link>

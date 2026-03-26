@@ -44,6 +44,13 @@ export default function Catalog() {
     [],
   );
   const sortLabel = useMemo(() => sortOptions.find((o) => o.value === sort)?.label ?? "По свежести", [sort, sortOptions]);
+  const resetFilters = () => {
+    setQuery("");
+    setSort("default");
+    setCategory(categories[0]?.id ?? "vegetables");
+    setPage(1);
+    setSortMenuOpen(false);
+  };
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement | null>(null);
   const sortButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -360,7 +367,7 @@ export default function Catalog() {
 
         <div className="flex items-center gap-3 lg:gap-4">
           <div className="hidden lg:flex items-center bg-[#e7e9e5] rounded-full h-12 px-5 gap-2.5">
-            <span className="text-[#707a6e] text-base shrink-0 leading-none">⌕</span>
+            <span className="text-[#707a6e] text-3xl shrink-0 leading-[1] h-12 w-7 inline-flex self-center items-center justify-center -translate-y-[2px]">⌕</span>
             <input
               className="bg-transparent border-none focus:ring-0 focus:outline-none text-base w-56 h-12 leading-none"
               placeholder="Поиск по каталогу..."
@@ -447,7 +454,7 @@ export default function Catalog() {
                   Экологично выращенные и вручную отобранные сезонные продукты — прямо с грядки к вашей двери.
                 </p>
               </div>
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-4 items-center flex-wrap">
                 <div className="bg-[#e2e3df] px-6 py-3 rounded-full flex items-center gap-2 text-sm font-semibold">
                   <span className="text-[#707a6e]">Сортировка:</span>
                   <div className="relative">
@@ -527,6 +534,13 @@ export default function Catalog() {
                     ) : null}
                   </div>
                 </div>
+                <button
+                  className="px-5 py-3 rounded-full bg-white border border-[#d4d7d1] text-[#5c6658] text-sm font-semibold hover:border-[#1f642e]/40 hover:text-[#1f642e] transition-colors"
+                  onClick={resetFilters}
+                  type="button"
+                >
+                  Сбросить фильтры
+                </button>
               </div>
             </div>
 
@@ -763,11 +777,11 @@ export default function Catalog() {
                 </ul>
               </div>
             </div>
-            <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400 gap-2">
+            <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-3 md:gap-6">
               <p>© 2026 Садовка. Все права защищены.</p>
               <span className="text-gray-300 hidden md:inline">•</span>
-              <p className="text-gray-400">Версия 26.03.2026</p>
-              <div className="flex space-x-6 mt-4 md:mt-0">
+              <p className="text-gray-400">Версия 26.03.2026-v1</p>
+              <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
                 <Link className="hover:text-forest-green" to="/privacy">
                   Политика конфиденциальности
                 </Link>
