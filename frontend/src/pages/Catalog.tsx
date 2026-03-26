@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import Header from "../components/Header";
 
 type ProductBadge =
   | { kind: "seasonal"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" }
@@ -30,6 +31,7 @@ export default function Catalog() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"default" | "name" | "season">("default");
+  const [seasonalOnly, setSeasonalOnly] = useState(false);
   const [category, setCategory] = useState<Product["category"]>("vegetables");
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -47,6 +49,7 @@ export default function Catalog() {
   const resetFilters = () => {
     setQuery("");
     setSort("default");
+    setSeasonalOnly(false);
     setCategory(categories[0]?.id ?? "vegetables");
     setPage(1);
     setSortMenuOpen(false);
@@ -117,6 +120,20 @@ export default function Catalog() {
     }
     setCategory((prev) => (categories.some((c) => c.id === prev) ? prev : categories[0]!.id));
   }, [categories, searchParams]);
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (!q) return;
+    setQuery(q);
+    setPage(1);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const seasonal = searchParams.get("seasonal");
+    if (!seasonal) return;
+    setSeasonalOnly(seasonal === "1" || seasonal.toLowerCase() === "true");
+    setPage(1);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,12 +318,14 @@ export default function Catalog() {
   const filteredProducts = useMemo(() => {
     const categoryBase = products.filter((p) => p.category === category);
 
-    const base = normalizedQuery
+    const baseByQuery = normalizedQuery
       ? categoryBase.filter((p) => {
           const hay = `${p.name} ${p.country}`.toLowerCase();
           return hay.includes(normalizedQuery);
         })
       : categoryBase;
+
+    const base = seasonalOnly ? baseByQuery.filter((p) => p.badge?.kind === "seasonal") : baseByQuery;
 
     if (sort === "name") {
       return [...base].sort((a, b) => a.name.localeCompare(b.name, "ru"));
@@ -318,7 +337,7 @@ export default function Catalog() {
     }
 
     return base;
-  }, [category, normalizedQuery, products, sort]);
+  }, [category, normalizedQuery, products, seasonalOnly, sort]);
 
   const pageSize = 6;
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
@@ -327,6 +346,14 @@ export default function Catalog() {
     const start = (currentPage - 1) * pageSize;
     return filteredProducts.slice(start, start + pageSize);
   }, [currentPage, filteredProducts]);
+
+  useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      "matchMedia" in window &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [currentPage]);
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Escape") return;
@@ -349,48 +376,15 @@ export default function Catalog() {
 
   return (
     <div className="bg-[#f9faf6] text-[#1a1c1a] overflow-x-hidden" style={organicBgStyle}>
-      {/* Header Navigation (from catalog.txt) */}
-      <header className="fixed top-0 w-full flex justify-between items-center px-6 lg:px-8 py-4 max-w-full bg-[#f9faf6]/93 backdrop-blur-sm text-[#1f642e] tracking-tight shadow-sm shadow-[#1f642e]/5 z-50">
-        <div className="flex items-center gap-8 lg:gap-12 min-w-0">
-          <Link className="text-2xl font-black text-[#1f642e] shrink-0" to="/">
-            Садовка
-          </Link>
-          <nav className="hidden md:flex gap-8">
-            <Link className="text-stone-600 hover:text-[#1f642e] transition-colors" to="/">
-              Главная
-            </Link>
-            <Link className="text-[#1f642e] font-bold border-b-2 border-[#1f642e] pb-1" to="/catalog">
-              Каталог
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-3 lg:gap-4">
-          <div className="hidden lg:flex items-center bg-[#e7e9e5] rounded-full h-12 px-5 gap-2.5">
-            <span className="text-[#707a6e] text-3xl shrink-0 leading-[1] h-12 w-7 inline-flex self-center items-center justify-center -translate-y-[2px]">⌕</span>
-            <input
-              className="bg-transparent border-none focus:ring-0 focus:outline-none text-base w-56 h-12 leading-none"
-              placeholder="Поиск по каталогу..."
-              type="search"
-              aria-label="Поиск по каталогу"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              onKeyDown={onSearchKeyDown}
-            />
-          </div>
-          <div className="flex gap-3 lg:gap-4 items-center">
-            <button
-              className="h-12 px-6 rounded-full bg-[#1f642e] text-white text-base font-bold leading-none inline-flex items-center justify-center shadow-lg shadow-[#1f642e]/20 hover:bg-[#195324] transition-colors"
-              type="button"
-            >
-              Корзина
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header
+        variant="catalog"
+        searchValue={query}
+        onSearchChange={(value) => {
+          setQuery(value);
+          setPage(1);
+        }}
+        onSearchKeyDown={onSearchKeyDown}
+      />
 
       <main className="pt-24 min-h-screen relative">
         {/* Background Elements */}
@@ -455,6 +449,18 @@ export default function Catalog() {
                 </p>
               </div>
               <div className="flex gap-4 items-center flex-wrap">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                    type="checkbox"
+                    checked={seasonalOnly}
+                    onChange={(e) => {
+                      setSeasonalOnly(e.target.checked);
+                      setPage(1);
+                    }}
+                  />
+                  <span className="text-sm font-medium">Сезонный товар</span>
+                </label>
                 <div className="bg-[#e2e3df] px-6 py-3 rounded-full flex items-center gap-2 text-sm font-semibold">
                   <span className="text-[#707a6e]">Сортировка:</span>
                   <div className="relative">
@@ -659,7 +665,7 @@ export default function Catalog() {
                       />
                     </svg>
                   </div>
-                  <span className="text-xl font-bold text-forest-green">Садовка</span>
+                  <span className="text-xl font-bold text-forest-green">MiksFreshGold.by</span>
                 </div>
                 <p className="text-gray-500 text-sm leading-relaxed mb-6">
                   Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
@@ -778,7 +784,7 @@ export default function Catalog() {
               </div>
             </div>
             <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-3 md:gap-6">
-              <p>© 2026 Садовка. Все права защищены.</p>
+              <p>© 2026 MiksFreshGold.by. Все права защищены.</p>
               <span className="text-gray-300 hidden md:inline">•</span>
               <p className="text-gray-400">Версия 26.03.2026-v1</p>
               <div className="flex space-x-6 mt-2 md:mt-0 justify-center">

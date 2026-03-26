@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 
 export default function Home() {
+  const navigate = useNavigate();
   const images = useMemo(
     () => ({
       hero: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=80",
@@ -221,7 +222,7 @@ export default function Home() {
 
   return (
     <>
-      <Header />
+      <Header showRightSection={false} />
 
       <main className="overflow-x-hidden pt-24">
         {/* BEGIN: Hero Section */}
@@ -242,7 +243,11 @@ export default function Home() {
                 Удобный заказ из каталога и доставка в удобное время — чтобы на вашем столе всегда было то, что вы любите.
               </p>
               <div className="flex flex-col sm:flex-row flex-wrap gap-4" data-reveal>
-                <button className="bg-leaf-green hover:bg-forest-green text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto">
+                <button
+                  className="bg-leaf-green hover:bg-forest-green text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto"
+                  type="button"
+                  onClick={() => navigate("/catalog?seasonal=1")}
+                >
                   Сезонные наборы
                 </button>
                 <Link
@@ -604,7 +609,7 @@ export default function Home() {
                     />
                   </svg>
                 </div>
-                <span className="text-xl font-bold text-forest-green">Садовка</span>
+                <span className="text-xl font-bold text-forest-green">MiksFreshGold.by</span>
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
@@ -723,7 +728,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-3 md:gap-6">
-            <p>© 2026 Садовка. Все права защищены.</p>
+            <p>© 2026 MiksFreshGold.by. Все права защищены.</p>
             <span className="text-gray-300 hidden md:inline">•</span>
             <p className="text-gray-400">Версия 26.03.2026-v1</p>
             <div className="flex space-x-6 mt-2 md:mt-0 justify-center">

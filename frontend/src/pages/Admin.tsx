@@ -475,6 +475,14 @@ function isAccessTokenExpired(token: string): boolean {
 }
 
 export default function Admin() {
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "Админ панель";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
+
   const navigate = useNavigate();
   const [isAuthed, setIsAuthed] = useState(getIsAuthed);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => getSavedActiveTab());
@@ -1069,7 +1077,7 @@ export default function Admin() {
               <div className="bg-[#0d601b]/10 w-16 h-16 rounded-full flex items-center justify-center mb-6 mx-auto text-[#0d601b]">
                 <IconPlant className="w-9 h-9" />
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-[#181d17] mb-2">Админ-панель Садовка</h1>
+              <h1 className="text-3xl font-extrabold tracking-tight text-[#181d17] mb-2">Админ-панель MiksFreshGold.by</h1>
               <p className="text-[#40493d] text-base">Введите логин и пароль</p>
             </div>
 
@@ -1171,7 +1179,7 @@ export default function Admin() {
         </main>
 
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
-          <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Садовка». Все права защищены.</span>
+          <span className="text-sm text-[#40493d]">© 2024 Админ-панель «MiksFreshGold.by». Все права защищены.</span>
           <div className="flex gap-6">
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
               Политика конфиденциальности
@@ -1206,7 +1214,7 @@ export default function Admin() {
               <div className="bg-primary p-2 rounded-lg text-white">
                 <IconLeaf className="w-5 h-5" />
               </div>
-              <h1 className="text-xl font-bold tracking-tight text-primary">Садовка</h1>
+              <h1 className="text-xl font-bold tracking-tight text-primary">MiksFreshGold.by</h1>
             </div>
             <nav className="flex-1 px-4 space-y-1">
               <a
