@@ -246,7 +246,7 @@ export default function Home() {
                 <button
                   className="bg-leaf-green hover:bg-forest-green text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto"
                   type="button"
-                  onClick={() => navigate("/catalog?seasonal=1")}
+                  onClick={() => navigate("/catalog?sort=season")}
                 >
                   Сезонные наборы
                 </button>
@@ -323,9 +323,9 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <h3 className="font-bold text-lg text-forest-green mb-2">Стабильные поставки</h3>
+              <h3 className="font-bold text-lg text-forest-green mb-2">Происхождение товаров</h3>
               <p className="text-sm text-gray-500 leading-relaxed">
-                Работаем с проверенными поставщиками и выстроенной логистикой — ассортимент доступен регулярно.
+                Указываем страну и категорию — вы понимаете, что покупаете и откуда продукт.
               </p>
             </div>
             {/* Feature 3 */}
@@ -460,7 +460,7 @@ export default function Home() {
                 </div>
                 <h4 className="font-bold text-xl text-forest-green mb-3">Доставка до двери</h4>
                 <p className="text-gray-500 text-sm">
-                  Курьер доставит ваш заказ в специальной термосумке в течение часа.
+                  Курьер доставит заказ аккуратно и вовремя — в удобный для вас интервал.
                 </p>
               </div>
             </div>
@@ -594,11 +594,11 @@ export default function Home() {
       </main>
 
       {/* BEGIN: Footer */}
-      <footer className="bg-gray-50 pt-12 pb-6 border-t border-gray-200" id="about">
+      <footer className="bg-gray-50 pt-8 pb-4 border-t border-gray-200" id="about">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             <div>
-              <div className="flex items-center space-x-2 mb-6">
+              <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-forest-green rounded-md flex items-center justify-center">
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -629,7 +629,7 @@ export default function Home() {
             </div>
             <div>
               <h4 className="font-bold text-forest-green mb-6">Каталог</h4>
-              <ul className="space-y-4 text-sm text-gray-500">
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li>
                   <a className="hover:text-vibrant-orange" href="#">
                     Овощи
@@ -654,7 +654,7 @@ export default function Home() {
             </div>
             <div>
               <h4 className="font-bold text-forest-green mb-6">О компании</h4>
-              <ul className="space-y-4 text-sm text-gray-500">
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li>
                   <a className="hover:text-vibrant-orange" href="#">
                     История бренда
@@ -679,14 +679,7 @@ export default function Home() {
             </div>
             <div>
               <h4 className="font-bold text-forest-green mb-6">Контакты</h4>
-              <ul className="space-y-4 text-sm text-gray-500">
-                <li className="leading-relaxed">
-                  ООО &quot;Миксголдфрукт&quot;
-                  <br />
-                  УНП 193855188
-                  <br />
-                  Юридический адрес У Л. ВЕРЫ ХОРУЖЕЙ, ДОМ 6А, ОФ. 117, 220100
-                </li>
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li className="flex items-center">
                   <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -727,7 +720,7 @@ export default function Home() {
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-3 md:gap-6">
+          <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
             <p>© 2026 MiksFreshGold.by. Все права защищены.</p>
             <span className="text-gray-300 hidden md:inline">•</span>
             <p className="text-gray-400">Версия 26.03.2026-v1</p>

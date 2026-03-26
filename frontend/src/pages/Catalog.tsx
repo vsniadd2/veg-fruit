@@ -31,7 +31,6 @@ export default function Catalog() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"default" | "name" | "season">("default");
-  const [seasonalOnly, setSeasonalOnly] = useState(false);
   const [category, setCategory] = useState<Product["category"]>("vegetables");
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -49,7 +48,6 @@ export default function Catalog() {
   const resetFilters = () => {
     setQuery("");
     setSort("default");
-    setSeasonalOnly(false);
     setCategory(categories[0]?.id ?? "vegetables");
     setPage(1);
     setSortMenuOpen(false);
@@ -129,10 +127,12 @@ export default function Catalog() {
   }, [searchParams]);
 
   useEffect(() => {
-    const seasonal = searchParams.get("seasonal");
-    if (!seasonal) return;
-    setSeasonalOnly(seasonal === "1" || seasonal.toLowerCase() === "true");
-    setPage(1);
+    const s = searchParams.get("sort");
+    if (!s) return;
+    if (s === "default" || s === "name" || s === "season") {
+      setSort(s);
+      setPage(1);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -318,14 +318,12 @@ export default function Catalog() {
   const filteredProducts = useMemo(() => {
     const categoryBase = products.filter((p) => p.category === category);
 
-    const baseByQuery = normalizedQuery
+    const base = normalizedQuery
       ? categoryBase.filter((p) => {
           const hay = `${p.name} ${p.country}`.toLowerCase();
           return hay.includes(normalizedQuery);
         })
       : categoryBase;
-
-    const base = seasonalOnly ? baseByQuery.filter((p) => p.badge?.kind === "seasonal") : baseByQuery;
 
     if (sort === "name") {
       return [...base].sort((a, b) => a.name.localeCompare(b.name, "ru"));
@@ -337,7 +335,7 @@ export default function Catalog() {
     }
 
     return base;
-  }, [category, normalizedQuery, products, seasonalOnly, sort]);
+  }, [category, normalizedQuery, products, sort]);
 
   const pageSize = 6;
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
@@ -449,18 +447,6 @@ export default function Catalog() {
                 </p>
               </div>
               <div className="flex gap-4 items-center flex-wrap">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
-                    type="checkbox"
-                    checked={seasonalOnly}
-                    onChange={(e) => {
-                      setSeasonalOnly(e.target.checked);
-                      setPage(1);
-                    }}
-                  />
-                  <span className="text-sm font-medium">Сезонный товар</span>
-                </label>
                 <div className="bg-[#e2e3df] px-6 py-3 rounded-full flex items-center gap-2 text-sm font-semibold">
                   <span className="text-[#707a6e]">Сортировка:</span>
                   <div className="relative">
@@ -650,11 +636,11 @@ export default function Catalog() {
           </section>
         </div>
 
-        <footer className="bg-gray-50 pt-12 pb-6 border-t border-gray-200" id="about">
+        <footer className="bg-gray-50 pt-8 pb-4 border-t border-gray-200" id="about">
           <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
               <div>
-                <div className="flex items-center space-x-2 mb-6">
+                <div className="flex items-center space-x-2 mb-4">
                   <div className="w-8 h-8 bg-forest-green rounded-md flex items-center justify-center">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
@@ -685,7 +671,7 @@ export default function Catalog() {
               </div>
               <div>
                 <h4 className="font-bold text-forest-green mb-6">Каталог</h4>
-                <ul className="space-y-4 text-sm text-gray-500">
+                <ul className="space-y-2 text-sm text-gray-500">
                   <li>
                     <a className="hover:text-vibrant-orange" href="#">
                       Овощи
@@ -710,7 +696,7 @@ export default function Catalog() {
               </div>
               <div>
                 <h4 className="font-bold text-forest-green mb-6">О компании</h4>
-                <ul className="space-y-4 text-sm text-gray-500">
+                <ul className="space-y-2 text-sm text-gray-500">
                   <li>
                     <a className="hover:text-vibrant-orange" href="#">
                       История бренда
@@ -735,14 +721,7 @@ export default function Catalog() {
               </div>
               <div>
                 <h4 className="font-bold text-forest-green mb-6">Контакты</h4>
-                <ul className="space-y-4 text-sm text-gray-500">
-                  <li className="leading-relaxed">
-                    ООО &quot;Миксголдфрукт&quot;
-                    <br />
-                    УНП 193855188
-                    <br />
-                    Юридический адрес У Л. ВЕРЫ ХОРУЖЕЙ, ДОМ 6А, ОФ. 117, 220100
-                  </li>
+                <ul className="space-y-2 text-sm text-gray-500">
                   <li className="flex items-center">
                     <svg className="w-4 h-4 mr-3 text-leaf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
@@ -783,7 +762,7 @@ export default function Catalog() {
                 </ul>
               </div>
             </div>
-            <div className="border-t border-gray-200 pt-6 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-3 md:gap-6">
+            <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
               <p>© 2026 MiksFreshGold.by. Все права защищены.</p>
               <span className="text-gray-300 hidden md:inline">•</span>
               <p className="text-gray-400">Версия 26.03.2026-v1</p>
