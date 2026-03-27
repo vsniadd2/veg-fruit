@@ -723,7 +723,7 @@ export default function Home() {
           <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
             <p>© 2026 Миксголдфрукт. Все права защищены.</p>
             <span className="text-gray-300 hidden md:inline">•</span>
-            <p className="text-gray-400">Версия 28.03.2026-v2</p>
+            <p className="text-gray-400">Версия 28.03.2026-v3</p>
             <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
               <Link className="hover:text-forest-green" to="/privacy">
                 Политика конфиденциальности

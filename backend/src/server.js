@@ -91,6 +91,38 @@ async function normalizeUploadedImage(file) {
   }
 }
 
+function mapProductWeight(row) {
+  const wv = row.weight_value;
+  const wu = row.weight_unit;
+  if (wv == null || wu == null) return { weightValue: null, weightUnit: null };
+  const n = typeof wv === "number" ? wv : Number.parseFloat(String(wv));
+  if (!Number.isFinite(n)) return { weightValue: null, weightUnit: null };
+  const unit = String(wu).toLowerCase();
+  if (unit !== "kg" && unit !== "g") return { weightValue: null, weightUnit: null };
+  return { weightValue: n, weightUnit: unit };
+}
+
+/** @returns {{ weightValue: number | null, weightUnit: string | null } | { error: string }} */
+function parseWeightFromBody(body) {
+  if (!body || typeof body !== "object") return { weightValue: null, weightUnit: null };
+  const rawVal = body.weightValue;
+  const rawUnit = typeof body.weightUnit === "string" ? body.weightUnit.trim().toLowerCase() : "";
+  const emptyVal =
+    rawVal === undefined ||
+    rawVal === null ||
+    rawVal === "" ||
+    (typeof rawVal === "string" && !String(rawVal).trim());
+  if (emptyVal && !rawUnit) return { weightValue: null, weightUnit: null };
+  if (emptyVal || !rawUnit) return { error: "weight_incomplete" };
+  const n =
+    typeof rawVal === "number" && Number.isFinite(rawVal)
+      ? rawVal
+      : Number.parseFloat(String(rawVal).replace(",", ".").trim());
+  if (!Number.isFinite(n) || n <= 0) return { error: "invalid_weight" };
+  if (rawUnit !== "kg" && rawUnit !== "g") return { error: "invalid_weight_unit" };
+  return { weightValue: n, weightUnit: rawUnit };
+}
+
 function mapHomeCardRow(row) {
   return {
     slot: Number(row.slot),
@@ -415,7 +447,7 @@ app.get("/api/products", async (req, res) => {
     const total = count.rows[0]?.count ?? 0;
 
     const items = await pool.query(
-      `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, p.in_stock, c.name as category_name
+      `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, p.in_stock, p.weight_value, p.weight_unit, c.name as category_name
        from products p
        left join categories c on c.id = p.category_id
        ${whereSql}
@@ -429,22 +461,27 @@ app.get("/api/products", async (req, res) => {
       page,
       pageSize,
       total,
-      items: items.rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        country: r.country,
-        price: r.price,
-        imageUrl: r.has_image_data ? `/api/products/${r.id}/image` : r.image_url ?? "",
-        categoryId: r.category_id ?? null,
-        categoryName: r.category_name ?? null,
-        inStock: r.in_stock !== false,
-        badge: r.badge_kind
-          ? {
-              kind: r.badge_kind,
-              label: r.badge_label ?? "",
-            }
-          : null,
-      })),
+      items: items.rows.map((r) => {
+        const w = mapProductWeight(r);
+        return {
+          id: r.id,
+          name: r.name,
+          country: r.country,
+          price: r.price,
+          imageUrl: r.has_image_data ? `/api/products/${r.id}/image` : r.image_url ?? "",
+          categoryId: r.category_id ?? null,
+          categoryName: r.category_name ?? null,
+          inStock: r.in_stock !== false,
+          weightValue: w.weightValue,
+          weightUnit: w.weightUnit,
+          badge: r.badge_kind
+            ? {
+                kind: r.badge_kind,
+                label: r.badge_label ?? "",
+              }
+            : null,
+        };
+      }),
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -493,6 +530,19 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
   const badgeKind = typeof body.badgeKind === "string" ? body.badgeKind.trim() : null;
   const badgeLabel = typeof body.badgeLabel === "string" ? body.badgeLabel.trim() : null;
 
+  const parsedWeight = parseWeightFromBody(body);
+  if ("error" in parsedWeight) {
+    const msg =
+      parsedWeight.error === "weight_incomplete"
+        ? "Укажите фасовку: число и единицу (кг или г)"
+        : parsedWeight.error === "invalid_weight"
+          ? "Некорректное значение фасовки"
+          : "Единица фасовки: кг или г";
+    res.status(400).json({ error: parsedWeight.error, message: msg });
+    return;
+  }
+  const { weightValue, weightUnit } = parsedWeight;
+
   if (!name || !country) {
     res.status(400).json({ error: "name, country are required" });
     return;
@@ -515,9 +565,9 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     const { rows } =
       normalizedImage && normalizedImage.ok
         ? await pool.query(
-            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
-             values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8, true)
-             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
+            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock)
+             values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8, $9::numeric, $10, true)
+             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, weight_value, weight_unit`,
             [
               name,
               categoryId,
@@ -527,19 +577,22 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
               normalizedImage.imageMime,
               badgeKind,
               badgeLabel,
+              weightValue,
+              weightUnit,
             ],
           )
         : await pool.query(
-            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
-             values ($1, $2::uuid, $3, $4::numeric, null, null, null, $5, $6, true)
-             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
-            [name, categoryId, country, price, badgeKind, badgeLabel],
+            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock)
+             values ($1, $2::uuid, $3, $4::numeric, null, null, null, $5, $6, $7::numeric, $8, true)
+             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, weight_value, weight_unit`,
+            [name, categoryId, country, price, badgeKind, badgeLabel, weightValue, weightUnit],
           );
     const r = rows[0];
     const category = r.category_id
       ? await pool.query(`select name from categories where id = $1::uuid`, [r.category_id])
       : { rows: [] };
     const categoryName = category.rows[0]?.name ?? null;
+    const w = mapProductWeight(r);
     res.status(201).json({
       id: r.id,
       name: r.name,
@@ -549,6 +602,8 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       categoryId: r.category_id ?? null,
       categoryName,
       inStock: r.in_stock !== false,
+      weightValue: w.weightValue,
+      weightUnit: w.weightUnit,
       badge: r.badge_kind ? { kind: r.badge_kind, label: r.badge_label ?? "" } : null,
     });
   } catch (e) {
@@ -592,6 +647,19 @@ app.put("/api/products/:id", async (req, res) => {
         : null;
   const inStock = !(body.inStock === false || body.inStock === "false");
 
+  const parsedWeight = parseWeightFromBody(body);
+  if ("error" in parsedWeight) {
+    const msg =
+      parsedWeight.error === "weight_incomplete"
+        ? "Укажите фасовку: число и единицу (кг или г), или очистите поле"
+        : parsedWeight.error === "invalid_weight"
+          ? "Некорректное значение фасовки"
+          : "Единица фасовки: кг или г";
+    res.status(400).json({ error: parsedWeight.error, message: msg });
+    return;
+  }
+  const { weightValue, weightUnit } = parsedWeight;
+
   if (!name || !country) {
     res.status(400).json({ error: "name, country are required" });
     return;
@@ -606,10 +674,12 @@ app.put("/api/products/:id", async (req, res) => {
            price = $4::numeric,
            badge_kind = $5,
            badge_label = $6,
-           in_stock = $7
-       where id = $8::uuid
-       returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
-      [name, categoryId, country, price, badgeKind, badgeLabel, inStock, id],
+           in_stock = $7,
+           weight_value = $8::numeric,
+           weight_unit = $9
+       where id = $10::uuid
+       returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, weight_value, weight_unit`,
+      [name, categoryId, country, price, badgeKind, badgeLabel, inStock, weightValue, weightUnit, id],
     );
     const r = rows[0];
     if (!r) {
@@ -620,6 +690,7 @@ app.put("/api/products/:id", async (req, res) => {
       ? await pool.query(`select name from categories where id = $1::uuid`, [r.category_id])
       : { rows: [] };
     const categoryName = category.rows[0]?.name ?? null;
+    const w = mapProductWeight(r);
     res.json({
       id: r.id,
       name: r.name,
@@ -629,6 +700,8 @@ app.put("/api/products/:id", async (req, res) => {
       categoryId: r.category_id ?? null,
       categoryName,
       inStock: r.in_stock !== false,
+      weightValue: w.weightValue,
+      weightUnit: w.weightUnit,
       badge: r.badge_kind ? { kind: r.badge_kind, label: r.badge_label ?? "" } : null,
     });
   } catch (e) {

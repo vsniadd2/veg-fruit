@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AdminSuppliers } from "./admin/AdminSuppliers";
@@ -36,6 +37,8 @@ type Product = {
   categoryId: string | null;
   categoryName: string | null;
   inStock?: boolean;
+  weightValue?: number | null;
+  weightUnit?: "kg" | "g" | null;
   badge?: { kind: string; label: string } | null;
 };
 type HomeCard = {
@@ -133,6 +136,158 @@ function AdminProductImage(props: { src: string | null; alt: string; className?:
   if (!resolvedSrc) return null;
 
   return <img alt={alt} className={className} src={objectUrl ?? resolvedSrc} />;
+}
+
+const WEIGHT_UNIT_OPTIONS: Array<{ value: "kg" | "g"; label: string }> = [
+  { value: "g", label: "гр" },
+  { value: "kg", label: "кг" },
+];
+
+function WeightUnitSelect(props: {
+  value: "kg" | "g";
+  onChange: (v: "kg" | "g") => void;
+  id?: string;
+}) {
+  const { value, onChange, id } = props;
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement | null>(null);
+  const listId = useId();
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const updateMenuPos = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setMenuPos({ top: r.bottom + 6, left: r.left, width: r.width });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    updateMenuPos();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onScrollOrResize = () => updateMenuPos();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (rootRef.current?.contains(t)) return;
+      if (menuPanelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const currentLabel = WEIGHT_UNIT_OPTIONS.find((o) => o.value === value)?.label ?? "гр";
+
+  const menuPanel =
+    open && menuPos
+      ? createPortal(
+          <div
+            ref={menuPanelRef}
+            className="fixed z-[100020] flex flex-col overflow-hidden rounded-2xl border border-[#1f642e]/10 bg-white/95 p-0 shadow-xl shadow-[#1f642e]/15 backdrop-blur-md dark:border-slate-600 dark:bg-slate-900/95"
+            id={listId}
+            role="listbox"
+            style={{
+              top: menuPos.top,
+              left: menuPos.left,
+              minWidth: menuPos.width,
+            }}
+          >
+            {WEIGHT_UNIT_OPTIONS.map((o, i) => {
+              const active = value === o.value;
+              const isFirst = i === 0;
+              const isLast = i === WEIGHT_UNIT_OPTIONS.length - 1;
+              return (
+                <button
+                  key={o.value}
+                  className={[
+                    "flex w-full items-center px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+                    isFirst ? "rounded-t-2xl" : "",
+                    isLast ? "rounded-b-2xl" : "",
+                    active
+                      ? "bg-[#1f642e] text-white"
+                      : "text-[#1a1c1a] hover:bg-[#e7e9e5] dark:text-slate-100 dark:hover:bg-slate-700",
+                  ].join(" ")}
+                  role="option"
+                  type="button"
+                  aria-selected={active}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <div ref={rootRef} className="relative shrink-0 w-[5.5rem]">
+      <button
+        ref={triggerRef}
+        id={id}
+        type="button"
+        aria-label="Единица веса"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={open ? listId : undefined}
+        className={[
+          "flex w-full cursor-pointer items-center justify-between gap-1 rounded-xl border border-[#1f642e]/25 bg-[#f9faf6]/80 px-2.5 py-2.5 text-sm font-semibold text-[#1a1c1a] shadow-sm backdrop-blur-sm transition-colors",
+          "hover:border-[#1f642e]/45 hover:bg-white/90",
+          "focus:border-[#1f642e]/50 focus:outline-none focus:ring-2 focus:ring-[#1f642e]/20",
+          "dark:border-[#1f642e]/35 dark:bg-slate-800/90 dark:text-slate-100 dark:hover:border-[#1f642e]/50",
+        ].join(" ")}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{currentLabel}</span>
+        <svg
+          className={[
+            "h-4 w-4 shrink-0 text-[#707a6e] transition-transform duration-200",
+            open ? "rotate-180" : "rotate-0",
+          ].join(" ")}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.24 4.5a.75.75 0 0 1-1.08 0l-4.24-4.5a.75.75 0 0 1 .02-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      {menuPanel}
+    </div>
+  );
 }
 
 function IconLeaf(props: { className?: string }) {
@@ -571,6 +726,8 @@ export default function Admin() {
   const [newProductImageFile, setNewProductImageFile] = useState<File | null>(null);
   const [newProductImagePreviewUrl, setNewProductImagePreviewUrl] = useState<string | null>(null);
   const [newProductSeasonal, setNewProductSeasonal] = useState(false);
+  const [newProductWeightValue, setNewProductWeightValue] = useState("");
+  const [newProductWeightUnit, setNewProductWeightUnit] = useState<"kg" | "g">("g");
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -578,6 +735,8 @@ export default function Admin() {
   const [editProductCountry, setEditProductCountry] = useState("");
   const [editProductPrice, setEditProductPrice] = useState("");
   const [editProductCategoryId, setEditProductCategoryId] = useState("");
+  const [editProductWeightValue, setEditProductWeightValue] = useState("");
+  const [editProductWeightUnit, setEditProductWeightUnit] = useState<"kg" | "g">("g");
   const [editProductSeasonal, setEditProductSeasonal] = useState(false);
   const [editProductInStock, setEditProductInStock] = useState(true);
   const [isSavingProductEdit, setIsSavingProductEdit] = useState(false);
@@ -813,6 +972,11 @@ export default function Admin() {
     setEditProductCountry(p.country);
     setEditProductPrice(p.price === null || p.price === undefined || p.price === "" ? "" : String(p.price));
     setEditProductCategoryId(p.categoryId ?? "");
+    const wv = p.weightValue;
+    setEditProductWeightValue(
+      wv !== null && wv !== undefined && Number.isFinite(Number(wv)) ? String(wv) : "",
+    );
+    setEditProductWeightUnit(p.weightUnit === "kg" ? "kg" : "g");
     setEditProductSeasonal(p.badge?.kind === "seasonal");
     setEditProductInStock(p.inStock !== false);
   };
@@ -843,6 +1007,14 @@ export default function Admin() {
       } else {
         body.badgeKind = null;
         body.badgeLabel = null;
+      }
+      const wTrim = editProductWeightValue.trim();
+      if (wTrim) {
+        body.weightValue = Number.parseFloat(wTrim.replace(",", "."));
+        body.weightUnit = editProductWeightUnit;
+      } else {
+        body.weightValue = null;
+        body.weightUnit = null;
       }
       await adminFetchJson<Product>(`/api/products/${encodeURIComponent(editingProduct.id)}`, {
         method: "PUT",
@@ -1286,7 +1458,10 @@ export default function Admin() {
         ) : null}
 
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
-          <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
+          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
+            <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
+            <span className="text-xs text-[#707a6c]">Версия 28.03.2026-v3</span>
+          </div>
           <div className="flex gap-6">
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
               Политика конфиденциальности
@@ -1804,6 +1979,11 @@ export default function Admin() {
                             form.append("badgeKind", "seasonal");
                             form.append("badgeLabel", "СЕЗОННОЕ");
                           }
+                          const wNew = newProductWeightValue.trim();
+                          if (wNew) {
+                            form.append("weightValue", wNew.replace(",", "."));
+                            form.append("weightUnit", newProductWeightUnit);
+                          }
 
                           await adminFetchJson<Product>("/api/products", {
                             method: "POST",
@@ -1813,6 +1993,8 @@ export default function Admin() {
                           setNewProductName("");
                           setNewProductCountry("");
                           setNewProductPrice("");
+                          setNewProductWeightValue("");
+                          setNewProductWeightUnit("g");
                           setNewProductImageFile(null);
                           setNewProductSeasonal(false);
                           await loadRecentProducts();
@@ -1874,6 +2056,24 @@ export default function Admin() {
                             value={newProductPrice}
                             onChange={(e) => setNewProductPrice(e.target.value)}
                           />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5">Вес (необязательно)</label>
+                          <div className="flex gap-2 items-center">
+                            <input
+                              className="min-w-0 flex-1 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                              inputMode="decimal"
+                              placeholder="Например: 500"
+                              type="text"
+                              value={newProductWeightValue}
+                              onChange={(e) => setNewProductWeightValue(e.target.value)}
+                            />
+                            <WeightUnitSelect
+                              value={newProductWeightUnit}
+                              onChange={setNewProductWeightUnit}
+                            />
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">В каталоге показывается в строке с весом.</p>
                         </div>
                         <label className="flex items-center gap-3 cursor-pointer select-none">
                           <input
@@ -2060,7 +2260,7 @@ export default function Admin() {
                       <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-slate-100 dark:border-slate-800">
                           <h4 className="text-lg font-bold">Редактировать товар</h4>
-                          <p className="text-sm text-slate-500">Название, страна, цена, категория, наличие и сезонность.</p>
+                          <p className="text-sm text-slate-500">Название, страна, цена, вес, категория, наличие и сезонность.</p>
                         </div>
                         <div className="p-6 space-y-4">
                           <div>
@@ -2103,6 +2303,20 @@ export default function Admin() {
                               value={editProductPrice}
                               onChange={(e) => setEditProductPrice(e.target.value)}
                             />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Вес</label>
+                            <div className="flex gap-2 items-center">
+                              <input
+                                className="min-w-0 flex-1 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                                inputMode="decimal"
+                                placeholder="Очистите, чтобы убрать"
+                                type="text"
+                                value={editProductWeightValue}
+                                onChange={(e) => setEditProductWeightValue(e.target.value)}
+                              />
+                              <WeightUnitSelect value={editProductWeightUnit} onChange={setEditProductWeightUnit} />
+                            </div>
                           </div>
                           <label className="flex items-center gap-3 cursor-pointer select-none">
                             <input

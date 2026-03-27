@@ -11,6 +11,34 @@ import { initDb, pool } from "../src/db.js";
 
 const CATEGORY_ORDER = ["Овощи", "Фрукты", "Ягоды"];
 
+/** Демо-фасовка для сидов: [число, 'kg' | 'g'] — по порядку строк в SEED_ROWS */
+const DEMO_WEIGHTS = [
+  [1, "kg"],
+  [0.5, "kg"],
+  [500, "g"],
+  [0.6, "kg"],
+  [500, "g"],
+  [1, "kg"],
+  [1, "kg"],
+  [2, "kg"],
+  [1.5, "kg"],
+  [200, "g"],
+  [1, "kg"],
+  [250, "g"],
+  [500, "g"],
+  [250, "g"],
+  [1, "kg"],
+  [1, "kg"],
+  [200, "g"],
+  [1, "kg"],
+  [1, "kg"],
+  [400, "g"],
+  [400, "g"],
+  [250, "g"],
+  [250, "g"],
+  [500, "g"],
+];
+
 /**
  * Прямые ссылки на upload.wikimedia.org (Commons разрешает хотлинк).
  * Unsplash в <img> часто даёт обрыв из‑за политики CDN/реферера.
@@ -308,10 +336,14 @@ async function main() {
     const categoryId = idByName.get(row.category);
     if (!categoryId) throw new Error(`unknown category: ${row.category}`);
 
+    const pair = DEMO_WEIGHTS[inserted];
+    const wv = pair ? pair[0] : null;
+    const wu = pair ? pair[1] : null;
+
     await pool.query(
-      `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
-       values ($1, $2, $3, $4::numeric, $5, null, null, $6, $7, true)`,
-      [row.name, categoryId, row.country, row.price, row.image_url, row.badge_kind, row.badge_label],
+      `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock)
+       values ($1, $2, $3, $4::numeric, $5, null, null, $6, $7, $8::numeric, $9, true)`,
+      [row.name, categoryId, row.country, row.price, row.image_url, row.badge_kind, row.badge_label, wv, wu],
     );
     inserted += 1;
   }

@@ -190,7 +190,7 @@ export default function Header({
               <button
                 type="button"
                 aria-label="Закрыть меню"
-                className="fixed left-0 right-0 bottom-0 top-[80px] z-[60] bg-[#1a1c1a]/35 backdrop-blur-lg motion-reduce:backdrop-blur-none"
+                className="fixed left-0 right-0 bottom-0 top-[80px] z-[60] bg-[#1a1c1a]/38 backdrop-blur-[120px] motion-reduce:backdrop-blur-none"
                 onClick={() => setMobileMenuOpen(false)}
               />
               <div
@@ -199,7 +199,7 @@ export default function Header({
                   "max-h-[min(70vh,520px)] min-h-[min(48vh,340px)] flex flex-col isolate",
                   "rounded-[1.75rem] overflow-hidden",
                   "bg-gradient-to-br from-white/90 via-white/78 to-white/85",
-                  "backdrop-blur-2xl backdrop-saturate-125 backdrop-brightness-[1.02] motion-reduce:backdrop-blur-none motion-reduce:backdrop-saturate-100",
+                  "backdrop-blur-[160px] backdrop-saturate-[1.35] backdrop-brightness-[1.02] motion-reduce:backdrop-blur-none motion-reduce:backdrop-saturate-100",
                   "border border-white/75 shadow-[0_8px_32px_rgba(0,0,0,0.1),0_1px_0_rgba(255,255,255,0.85)_inset]",
                   "ring-1 ring-white/55",
                 ].join(" ")}
@@ -214,13 +214,13 @@ export default function Header({
                     className={[
                       "relative z-10 block px-4 py-4 rounded-2xl text-base tracking-tight",
                       "transition-[color,background-color,box-shadow,transform,border-color] duration-200",
-                      "active:scale-[0.99] backdrop-blur-lg backdrop-saturate-110 motion-reduce:backdrop-blur-none",
+                      "active:scale-[0.99]",
                       isHome
-                        ? "font-bold bg-white/95 text-[#1f642e] border border-[#1f642e]/40 shadow-[0_6px_18px_rgba(31,100,46,0.15),inset_0_1px_0_rgba(255,255,255,0.95)]"
+                        ? "font-bold bg-[#f9faf6]/93 text-[#1f642e] backdrop-blur-sm border-2 border-[#1f642e]/40 shadow-sm shadow-[#1f642e]/15 ring-1 ring-[#1f642e]/10 motion-reduce:backdrop-blur-none"
                         : [
-                            "font-semibold text-[#1a1c1a] bg-white/62 border border-white/65",
-                            "shadow-[0_4px_14px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.75)]",
-                            "hover:bg-white/78 hover:border-white/80",
+                            "font-semibold text-stone-600 bg-[#f9faf6]/93 backdrop-blur-sm border border-[#1f642e]/10",
+                            "shadow-sm shadow-[#1f642e]/5",
+                            "hover:text-[#1f642e] hover:border-[#1f642e]/25 hover:shadow-md hover:shadow-[#1f642e]/10 motion-reduce:backdrop-blur-none",
                           ].join(" "),
                     ].join(" ")}
                     to="/"
@@ -232,13 +232,13 @@ export default function Header({
                     className={[
                       "relative z-10 block px-4 py-4 rounded-2xl text-base tracking-tight",
                       "transition-[color,background-color,box-shadow,transform,border-color] duration-200",
-                      "active:scale-[0.99] backdrop-blur-lg backdrop-saturate-110 motion-reduce:backdrop-blur-none",
+                      "active:scale-[0.99]",
                       isCatalogActive
-                        ? "font-bold bg-white/95 text-[#1f642e] border border-[#1f642e]/40 shadow-[0_6px_18px_rgba(31,100,46,0.15),inset_0_1px_0_rgba(255,255,255,0.95)]"
+                        ? "font-bold bg-[#f9faf6]/93 text-[#1f642e] backdrop-blur-sm border-2 border-[#1f642e]/40 shadow-sm shadow-[#1f642e]/15 ring-1 ring-[#1f642e]/10 motion-reduce:backdrop-blur-none"
                         : [
-                            "font-semibold text-[#1a1c1a] bg-white/62 border border-white/65",
-                            "shadow-[0_4px_14px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.75)]",
-                            "hover:bg-white/78 hover:border-white/80",
+                            "font-semibold text-stone-600 bg-[#f9faf6]/93 backdrop-blur-sm border border-[#1f642e]/10",
+                            "shadow-sm shadow-[#1f642e]/5",
+                            "hover:text-[#1f642e] hover:border-[#1f642e]/25 hover:shadow-md hover:shadow-[#1f642e]/10 motion-reduce:backdrop-blur-none",
                           ].join(" "),
                     ].join(" ")}
                     to="/catalog"
@@ -253,9 +253,10 @@ export default function Header({
                         type="button"
                         className={[
                           "mt-auto w-full px-4 py-4 rounded-2xl text-base font-bold text-center text-white",
-                          "bg-[#1f642e] backdrop-blur-md backdrop-saturate-110 motion-reduce:backdrop-blur-none",
-                          "border border-white/30 shadow-[0_8px_22px_rgba(31,100,46,0.28),inset_0_1px_0_rgba(255,255,255,0.28)]",
-                          "hover:bg-[#195324] transition-[background-color,transform] duration-200 active:scale-[0.99]",
+                          "bg-[#1f642e] border-2 border-white/55",
+                          "shadow-[0_10px_28px_rgba(31,100,46,0.45),0_2px_0_rgba(0,0,0,0.12)_inset,inset_0_1px_0_rgba(255,255,255,0.35)]",
+                          "ring-2 ring-[#0d2e16]/25",
+                          "hover:bg-[#195324] hover:border-white/65 transition-[background-color,transform,border-color] duration-200 active:scale-[0.99]",
                         ].join(" ")}
                         onClick={() => setMobileMenuOpen(false)}
                       >

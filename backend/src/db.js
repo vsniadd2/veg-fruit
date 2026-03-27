@@ -76,6 +76,39 @@ export async function initDb() {
     alter table products
     add column if not exists in_stock boolean not null default true;
   `);
+  await pool.query(`
+    alter table products
+    add column if not exists weight_value numeric(12, 3) null;
+  `);
+  await pool.query(`
+    alter table products
+    add column if not exists weight_unit text null;
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_products_weight_unit_allowed'
+      ) THEN
+        ALTER TABLE products ADD CONSTRAINT ck_products_weight_unit_allowed
+        CHECK (weight_unit IS NULL OR weight_unit IN ('kg', 'g'));
+      END IF;
+    END $$;
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_products_weight_pair'
+      ) THEN
+        ALTER TABLE products ADD CONSTRAINT ck_products_weight_pair
+        CHECK (
+          (weight_value IS NULL AND weight_unit IS NULL)
+          OR (weight_value IS NOT NULL AND weight_unit IS NOT NULL AND weight_value > 0)
+        );
+      END IF;
+    END $$;
+  `);
 
   await pool.query(`
     create table if not exists suppliers (

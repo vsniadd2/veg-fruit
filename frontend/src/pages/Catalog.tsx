@@ -15,8 +15,25 @@ type Product = {
   category: string; // categoryId (uuid) from backend
   categoryName?: string | null; // for convenience in UI
   price?: number | null;
+  weightValue?: number | null;
+  weightUnit?: "kg" | "g" | null;
   badge?: ProductBadge;
 };
+
+function formatPackageWeight(value: number | null | undefined, unit: "kg" | "g" | null | undefined): string | null {
+  if (value == null || unit == null) return null;
+  const v = Number(value);
+  if (!Number.isFinite(v) || v <= 0) return null;
+  if (unit === "g") {
+    const rounded = Math.abs(v - Math.round(v)) < 1e-6 ? Math.round(v) : v;
+    return `${rounded} гр`;
+  }
+  if (unit === "kg") {
+    const s = v % 1 === 0 ? String(v) : v.toFixed(3).replace(/\.?0+$/, "");
+    return `${s.replace(".", ",")} кг`;
+  }
+  return null;
+}
 
 const CATALOG_IMAGE_PLACEHOLDER =
   "data:image/svg+xml," +
@@ -185,6 +202,15 @@ export default function Catalog() {
                   : typeof it.price === "string" && it.price.trim()
                     ? Number.parseFloat(it.price)
                     : null;
+              const wv = it.weightValue;
+              const wu = it.weightUnit;
+              const weightValue =
+                typeof wv === "number" && Number.isFinite(wv)
+                  ? wv
+                  : typeof wv === "string" && wv.trim()
+                    ? Number.parseFloat(wv)
+                    : null;
+              const weightUnit = wu === "kg" || wu === "g" ? wu : null;
               return {
                 id: String(it.id),
                 name: String(it.name ?? ""),
@@ -193,6 +219,8 @@ export default function Catalog() {
                 category: String(it.categoryId ?? ""),
                 categoryName: it.categoryName ?? null,
                 price: Number.isFinite(price as number) ? (price as number) : null,
+                weightValue: weightValue != null && Number.isFinite(weightValue) ? weightValue : null,
+                weightUnit: weightValue != null && weightUnit ? weightUnit : null,
                 badge,
               } as Product;
             })
@@ -363,8 +391,8 @@ export default function Catalog() {
 
           {/* Main Catalog Content */}
           <section className="flex-1 pb-20">
-            {/* Catalog Header */}
-            <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6 mb-12">
+            {/* Catalog Header: z-30 — выпадающая сортировка над сеткой (иначе карточки рисуются поверх) */}
+            <div className="relative z-30 flex flex-col md:flex-row md:justify-between md:items-end gap-6 mb-12">
               <div>
                 <h1 className="text-5xl font-black text-[#1a1c1a] tracking-tighter mb-2">Наш урожай</h1>
                 <p className="text-[#40493f] max-w-md">
@@ -372,9 +400,9 @@ export default function Catalog() {
                 </p>
               </div>
               <div className="flex gap-4 items-center flex-wrap">
-                <div className="bg-[#e2e3df] px-6 py-3 rounded-full flex items-center gap-2 text-sm font-semibold">
+                <div className="flex h-12 items-center gap-2 rounded-full border border-[#1f642e]/10 bg-[#f9faf6]/70 px-5 backdrop-blur-sm text-sm font-semibold sm:px-6">
                   <span className="text-[#707a6e]">Сортировка:</span>
-                  <div className="relative">
+                  <div className="relative z-50">
                     <button
                       ref={sortButtonRef}
                       className="inline-flex items-center gap-2 bg-transparent text-[#1a1c1a] font-semibold pl-1 -ml-1 pr-1 rounded-full focus:outline-none focus:ring-2 focus:ring-[#1f642e]/20"
@@ -405,7 +433,7 @@ export default function Catalog() {
                       <div
                         ref={sortMenuRef}
                         role="menu"
-                        className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(16rem,calc(100vw-2.5rem))] max-h-[min(50vh,18rem)] overflow-auto rounded-2xl border border-[#1f642e]/10 bg-white/95 backdrop-blur-md shadow-2xl shadow-[#1f642e]/10"
+                        className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-[min(16rem,calc(100vw-2.5rem))] max-h-[min(50vh,18rem)] overflow-auto rounded-2xl border border-[#1f642e]/10 bg-white/95 shadow-2xl shadow-[#1f642e]/10 backdrop-blur-md"
                       >
                         <div className="p-2">
                           {sortOptions.map((o) => {
@@ -461,30 +489,40 @@ export default function Catalog() {
               </div>
             </div>
 
-            {/* Mobile search */}
+            {/* Mobile search — тот же вид, что поиск в шапке на lg (стекло + рамка + ⌕) */}
             <div className="lg:hidden mb-8">
-              <input
-                className="w-full bg-[#e7e9e5] rounded-full px-6 py-3 text-sm focus:ring-2 focus:ring-[#1f642e]/20 border border-transparent"
-                placeholder="Поиск по каталогу..."
-                type="search"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
-                onKeyDown={onSearchKeyDown}
-              />
+              <div className="flex w-full items-center bg-[#f9faf6]/70 backdrop-blur-sm border border-[#1f642e]/10 rounded-full h-12 px-5 gap-2.5">
+                <span
+                  className="text-[#707a6e] text-3xl shrink-0 leading-[1] h-12 w-7 inline-flex self-center items-center justify-center -translate-y-[2px]"
+                  aria-hidden
+                >
+                  ⌕
+                </span>
+                <input
+                  className="min-w-0 flex-1 bg-transparent border-none text-base h-12 leading-none placeholder:text-[#707a6e]/80 focus:outline-none focus:ring-0"
+                  placeholder="Поиск по каталогу..."
+                  aria-label="Поиск по каталогу"
+                  type="search"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  onKeyDown={onSearchKeyDown}
+                />
+              </div>
             </div>
 
             {/* Product Grid: Asymmetric Layout */}
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 min-[380px]:gap-6 sm:gap-8">
               {pagedProducts.map((p) => {
+                const packLabel = formatPackageWeight(p.weightValue, p.weightUnit);
                 return (
                   <article
                     key={p.id}
-                    className="group bg-white rounded-[2rem] p-6 shadow-sm hover:shadow-xl hover:shadow-[#1f642e]/5 transition-all duration-500 flex flex-col h-full"
+                    className="group min-w-0 bg-white rounded-[1.5rem] min-[380px]:rounded-[2rem] p-4 min-[380px]:p-6 shadow-sm hover:shadow-xl hover:shadow-[#1f642e]/5 transition-all duration-500 flex flex-col h-full"
                   >
-                    <div className="relative h-64 mb-6 rounded-2xl overflow-hidden bg-[#e2e3df]">
+                    <div className="relative h-48 min-[380px]:h-56 sm:h-64 mb-4 min-[380px]:mb-6 rounded-2xl overflow-hidden bg-[#e2e3df]">
                       <img
                         className="w-full h-full object-cover transition-transform duration-500 ease-out transform-gpu group-hover:scale-110"
                         alt={p.name}
@@ -498,23 +536,28 @@ export default function Catalog() {
                       ) : null}
                     </div>
 
-                    <div className="flex justify-between items-start mb-2 gap-4">
-                      <h3 className="text-2xl font-bold group-hover:text-[#1f642e] transition-colors leading-tight max-h-[3.5rem] overflow-hidden">
-                        {p.name}
-                      </h3>
-                      <span className="text-xl font-black text-[#1f642e] whitespace-nowrap">
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 text-left">
+                      <div className="min-h-[2.875rem] sm:min-h-[3.5rem]">
+                        <h3 className="line-clamp-2 text-base font-bold leading-snug text-[#1a1f18] [overflow-wrap:anywhere] group-hover:text-[#1f642e] transition-colors sm:text-xl sm:leading-tight">
+                          {p.name}
+                        </h3>
+                      </div>
+                      <p className="text-lg font-black tabular-nums text-[#1f642e] sm:text-xl">
                         {formatPrice(p) === "—" ? "—" : `${formatPrice(p)} BYN`}
-                      </span>
+                      </p>
+                      <p className="text-sm leading-snug text-[#40493f] line-clamp-2">
+                        {p.country ? `Страна: ${p.country}` : "Свежий сезонный продукт из нашей коллекции."}
+                      </p>
+                      {packLabel ? (
+                        <p className="text-sm leading-snug text-[#40493f]">Вес: {packLabel}</p>
+                      ) : null}
+                      <button
+                        className="mt-auto w-full bg-[#a8f0b3] py-3 text-[#2a703f] rounded-full font-bold transition-colors duration-300 hover:bg-[#1f642e] hover:text-white"
+                        type="button"
+                      >
+                        В корзину
+                      </button>
                     </div>
-                    <p className="text-[#40493f] text-sm mb-6 flex-grow min-h-[2.5rem] max-h-[2.5rem] overflow-hidden">
-                      {p.country ? `Страна: ${p.country}` : "Свежий сезонный продукт из нашей коллекции."}
-                    </p>
-                    <button
-                      className="w-full bg-[#a8f0b3] text-[#2a703f] py-3 rounded-full font-bold hover:bg-[#1f642e] hover:text-white transition-all duration-300"
-                      type="button"
-                    >
-                      В корзину
-                    </button>
                   </article>
                 );
               })}
@@ -690,7 +733,7 @@ export default function Catalog() {
             <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
               <p>© 2026 Миксголдфрукт. Все права защищены.</p>
               <span className="text-gray-300 hidden md:inline">•</span>
-              <p className="text-gray-400">Версия 28.03.2026-v2</p>
+              <p className="text-gray-400">Версия 28.03.2026-v3</p>
               <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
                 <Link className="hover:text-forest-green" to="/privacy">
                   Политика конфиденциальности
