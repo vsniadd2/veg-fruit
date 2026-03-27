@@ -54,6 +54,20 @@ export async function initDb() {
     add column if not exists image_mime text null;
   `);
   await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'ck_products_image_data_max_5mb'
+      ) THEN
+        ALTER TABLE products
+        ADD CONSTRAINT ck_products_image_data_max_5mb
+        CHECK (image_data IS NULL OR octet_length(image_data) <= 5 * 1024 * 1024);
+      END IF;
+    END $$;
+  `);
+  await pool.query(`
     alter table products
     alter column image_url drop not null;
   `);
@@ -105,6 +119,20 @@ export async function initDb() {
       image_mime text null,
       updated_at timestamptz not null default now()
     );
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'ck_home_cards_image_data_max_5mb'
+      ) THEN
+        ALTER TABLE home_cards
+        ADD CONSTRAINT ck_home_cards_image_data_max_5mb
+        CHECK (image_data IS NULL OR octet_length(image_data) <= 5 * 1024 * 1024);
+      END IF;
+    END $$;
   `);
   await pool.query(`create index if not exists idx_home_cards_category_id on home_cards(category_id);`);
   await pool.query(`

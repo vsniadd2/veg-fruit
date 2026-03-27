@@ -33,8 +33,8 @@ services:
       PGUSER: ${POSTGRES_USER:-veg_fruit}
       PGPASSWORD: ${POSTGRES_PASSWORD:-veg_fruit_password}
 
-      ADMIN_LOGIN: ${ADMIN_LOGIN:-fruit}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-1234}
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-miksgoldfruct}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-"Miksgold1!"}
       JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_me}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_jwt_refresh_secret_change_me}
 

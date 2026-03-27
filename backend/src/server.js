@@ -1,7 +1,9 @@
 import cors from "cors";
 import express from "express";
+import heicConvert from "heic-convert";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import path from "node:path";
 
 import { initDb, pool } from "./db.js";
 import { registerSuppliersAdminRoutes } from "./suppliersAdminRoutes.js";
@@ -23,19 +25,71 @@ app.use(
   }),
 );
 
-const ADMIN_LOGIN = process.env.ADMIN_LOGIN ?? "fruit";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "1234";
+const ADMIN_LOGIN = process.env.ADMIN_LOGIN ?? "miksgoldfruct";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "Miksgold1!";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev_jwt_secret_change_me";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? "dev_jwt_refresh_secret_change_me";
 
 const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL ?? "15m";
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL ?? "30d";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: MAX_IMAGE_BYTES },
 });
+
+function sendUploadError(res, status, error, message) {
+  res.status(status).json({ ok: false, error, message });
+}
+
+function detectMimeType(file) {
+  const declaredMime = String(file?.mimetype ?? "").toLowerCase().trim();
+  if (declaredMime) return declaredMime;
+  const ext = path.extname(String(file?.originalname ?? "")).toLowerCase();
+  if (ext === ".heic") return "image/heic";
+  if (ext === ".heif") return "image/heif";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".bmp") return "image/bmp";
+  if (ext === ".avif") return "image/avif";
+  return "";
+}
+
+async function normalizeUploadedImage(file) {
+  if (!file?.buffer?.length) return null;
+
+  const detectedMime = detectMimeType(file);
+  if (!detectedMime.startsWith("image/")) {
+    return { ok: false, error: "invalid_image_type", status: 400 };
+  }
+
+  const isHeicLike = detectedMime === "image/heic" || detectedMime === "image/heif";
+  if (!isHeicLike) {
+    return { ok: true, imageBuffer: file.buffer, imageMime: detectedMime };
+  }
+
+  try {
+    const converted = await heicConvert({
+      buffer: file.buffer,
+      format: "JPEG",
+      quality: 0.9,
+    });
+    const imageBuffer = Buffer.isBuffer(converted) ? converted : Buffer.from(converted);
+    if (!imageBuffer.length) {
+      return { ok: false, error: "image_conversion_failed", status: 400 };
+    }
+    if (imageBuffer.length > MAX_IMAGE_BYTES) {
+      return { ok: false, error: "file_too_large", status: 413 };
+    }
+    return { ok: true, imageBuffer, imageMime: "image/jpeg" };
+  } catch {
+    return { ok: false, error: "unsupported_mobile_image_format", status: 400 };
+  }
+}
 
 function mapHomeCardRow(row) {
   return {
@@ -444,21 +498,36 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     return;
   }
 
-  if (file?.buffer?.length) {
-    if (!String(file.mimetype || "").startsWith("image/")) {
-      res.status(400).json({ error: "invalid_image_type" });
-      return;
-    }
+  const normalizedImage = await normalizeUploadedImage(file);
+  if (normalizedImage && !normalizedImage.ok) {
+    sendUploadError(
+      res,
+      normalizedImage.status,
+      normalizedImage.error,
+      normalizedImage.error === "file_too_large"
+        ? "Файл слишком большой. Максимум 5 МБ."
+        : "Не удалось обработать изображение. Используйте JPG, PNG, WEBP или сохраните фото с телефона в совместимом формате.",
+    );
+    return;
   }
 
   try {
     const { rows } =
-      file && file.buffer?.length
+      normalizedImage && normalizedImage.ok
         ? await pool.query(
             `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
              values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8, true)
              returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock`,
-            [name, categoryId, country, price, file.buffer, file.mimetype, badgeKind, badgeLabel],
+            [
+              name,
+              categoryId,
+              country,
+              price,
+              normalizedImage.imageBuffer,
+              normalizedImage.imageMime,
+              badgeKind,
+              badgeLabel,
+            ],
           )
         : await pool.query(
             `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, in_stock)
@@ -684,8 +753,17 @@ app.post("/api/admin/home-cards/:slot/image", upload.single("image"), async (req
     res.status(400).json({ ok: false, error: "image_required" });
     return;
   }
-  if (!String(file.mimetype || "").startsWith("image/")) {
-    res.status(400).json({ ok: false, error: "invalid_image_type" });
+  const normalizedImage = await normalizeUploadedImage(file);
+  if (!normalizedImage || !normalizedImage.ok) {
+    const errorCode = normalizedImage?.error ?? "invalid_image_type";
+    sendUploadError(
+      res,
+      normalizedImage?.status ?? 400,
+      errorCode,
+      errorCode === "file_too_large"
+        ? "Файл слишком большой. Максимум 5 МБ."
+        : "Не удалось обработать изображение. Используйте JPG, PNG, WEBP или сохраните фото с телефона в совместимом формате.",
+    );
     return;
   }
 
@@ -697,7 +775,7 @@ app.post("/api/admin/home-cards/:slot/image", upload.single("image"), async (req
            updated_at = now()
        where slot = $1
        returning slot`,
-      [slot, file.buffer, file.mimetype],
+      [slot, normalizedImage.imageBuffer, normalizedImage.imageMime],
     );
     if (!updated.rows[0]) {
       res.status(404).json({ ok: false, error: "not_found" });
@@ -718,6 +796,20 @@ app.post("/api/admin/home-cards/:slot/image", upload.single("image"), async (req
 });
 
 registerSuppliersAdminRoutes(app, { pool, requireAdmin });
+
+app.use((err, _req, res, next) => {
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
+  if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+    sendUploadError(res, 413, "file_too_large", "Файл слишком большой. Максимум 5 МБ.");
+    return;
+  }
+
+  next(err);
+});
 
 const PORT = Number.parseInt(process.env.PORT ?? "3001", 10) || 3001;
 

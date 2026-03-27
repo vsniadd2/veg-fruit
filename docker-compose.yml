@@ -34,8 +34,8 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-veg_fruit_password}
 
       # Admin auth (поменяйте на свои значения)
-      ADMIN_LOGIN: ${ADMIN_LOGIN:-fruit}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-1234}
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-miksgoldfruct}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-"Miksgold1!"}
       JWT_SECRET: ${JWT_SECRET:-change_me_prod_jwt_secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_prod_jwt_refresh_secret}
 

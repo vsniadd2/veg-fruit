@@ -6,7 +6,7 @@ export default function Home() {
   const navigate = useNavigate();
   const images = useMemo(
     () => ({
-      hero: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1600&q=80",
+      hero: "/img/главная.jpg",
     }),
     [],
   );
@@ -609,7 +609,7 @@ export default function Home() {
                     />
                   </svg>
                 </div>
-                <span className="text-xl font-bold text-forest-green">MiksFreshGold.by</span>
+                <span className="text-xl font-bold text-forest-green">Миксголдфрукт</span>
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
@@ -715,13 +715,13 @@ export default function Home() {
                       strokeWidth="2"
                     />
                   </svg>
-                  Ежедневно с 8:00 до 22:00
+                  Ежедневно 9.00-21.00
                 </li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
-            <p>© 2026 MiksFreshGold.by. Все права защищены.</p>
+            <p>© 2026 Миксголдфрукт. Все права защищены.</p>
             <span className="text-gray-300 hidden md:inline">•</span>
             <p className="text-gray-400">Версия 26.03.2026-v1</p>
             <div className="flex space-x-6 mt-2 md:mt-0 justify-center">

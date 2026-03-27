@@ -12,6 +12,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const ACTIVE_TAB_KEY = "gh_admin_active_tab_v1";
 const CATALOG_CATEGORY_ID_KEY = "gh_admin_catalog_category_id_v1";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type AdminTab = "dashboard" | "homeCards" | "catalog" | "orders" | "suppliers" | "reports";
 
@@ -47,6 +48,34 @@ type HomeCard = {
 };
 
 const imageObjectUrlCache = new Map<string, string>();
+
+function isLikelyImageFile(file: File) {
+  if (file.type.startsWith("image/")) return true;
+  return /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(file.name);
+}
+
+function extractErrorCode(err: unknown) {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw) as { error?: unknown };
+    if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
+  } catch {
+    // ignore parse failures
+  }
+  return raw.trim();
+}
+
+function getUploadErrorMessage(err: unknown, fallback: string) {
+  const code = extractErrorCode(err);
+  if (code.includes("file_too_large")) return "Файл слишком большой. Максимум 5 МБ.";
+  if (code.includes("invalid_image_type")) return "Можно загрузить только изображение (JPG, PNG, WEBP, HEIC/HEIF).";
+  if (code.includes("unsupported_mobile_image_format")) {
+    return "Не удалось обработать фото с телефона. Сохраните его как JPG/PNG и загрузите снова.";
+  }
+  if (code.includes("image_conversion_failed")) return "Не удалось обработать изображение. Попробуйте другой файл.";
+  return fallback;
+}
 
 function AdminProductImage(props: { src: string | null; alt: string; className?: string }) {
   const { src, alt, className } = props;
@@ -207,20 +236,6 @@ function IconSearch(props: { className?: string }) {
     <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15Z" stroke="currentColor" strokeWidth="2" />
       <path d="M16.5 16.5 21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconBell(props: { className?: string }) {
-  return (
-    <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Z" fill="currentColor" />
-      <path
-        d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
@@ -490,6 +505,38 @@ export default function Admin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [loginHelpOpen, setLoginHelpOpen] = useState(false);
+
+  useEffect(() => {
+    if (!loginHelpOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLoginHelpOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [loginHelpOpen]);
+
+  useEffect(() => {
+    const link =
+      document.querySelector<HTMLLinkElement>('link[rel="icon"]') ??
+      (() => {
+        const el = document.createElement("link");
+        el.rel = "icon";
+        document.head.appendChild(el);
+        return el;
+      })();
+    const prevHref = link.getAttribute("href");
+    const prevType = link.getAttribute("type");
+    const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+    link.href = `${base}admin-favicon.svg`;
+    link.type = "image/svg+xml";
+    return () => {
+      if (prevHref != null) link.setAttribute("href", prevHref);
+      else link.removeAttribute("href");
+      if (prevType != null) link.setAttribute("type", prevType);
+      else link.removeAttribute("type");
+    };
+  }, []);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
@@ -727,8 +774,8 @@ export default function Admin() {
   };
 
   const uploadHomeCardImage = async (slot: number, file: File) => {
-    if (file.size > 5 * 1024 * 1024) throw new Error("file_too_large");
-    if (!file.type.startsWith("image/")) throw new Error("invalid_file_type");
+    if (file.size > MAX_IMAGE_BYTES) throw new Error("file_too_large");
+    if (!isLikelyImageFile(file)) throw new Error("invalid_image_type");
     setUploadingHomeCardSlot(slot);
     try {
       const form = new FormData();
@@ -1041,17 +1088,26 @@ export default function Admin() {
         </div>
 
         <header className="fixed top-0 w-full flex justify-between items-center px-6 sm:px-8 h-16 bg-transparent z-50">
-          <div className="flex items-center gap-2">
-            <div className="bg-[#0d601b] p-1.5 rounded-xl flex items-center justify-center text-white">
-              <IconPlant className="w-5 h-5" />
-            </div>
-            <span className="text-xl font-bold text-[#0d601b] tracking-tight">Verdant Gallery</span>
-          </div>
+          <button
+            className="flex items-center gap-2 rounded-xl py-1.5 pl-1 pr-2 -ml-1 text-left text-[#0d601b] outline-none transition-colors hover:bg-white/45 focus-visible:ring-2 focus-visible:ring-[#0d601b]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+            type="button"
+            aria-label="Обновить страницу админ-панели"
+            onClick={() => window.location.reload()}
+          >
+            <span className="flex items-center justify-center rounded-xl bg-[#0d601b] p-1.5 text-white">
+              <IconPlant className="h-5 w-5" />
+            </span>
+            <span className="text-xl font-bold tracking-tight">Админ панель</span>
+          </button>
           <div className="flex items-center gap-4">
             <button
               className="text-[#40493d] hover:bg-white/50 transition-colors p-2 rounded-full active:scale-95 duration-200"
               type="button"
               aria-label="Помощь"
+              aria-expanded={loginHelpOpen}
+              aria-haspopup="dialog"
+              aria-controls="admin-login-help-dialog"
+              onClick={() => setLoginHelpOpen(true)}
             >
               <IconHelp className="w-6 h-6" />
             </button>
@@ -1059,30 +1115,29 @@ export default function Admin() {
         </header>
 
         <main
-          className="flex items-center justify-center px-4 sm:px-6"
+          className="flex items-center justify-center px-4 py-2 sm:px-6"
           style={{ height: "calc(100vh - 8rem)" }}
         >
           <div
             className={[
               "w-[min(480px,92vw)]",
-              "max-h-[calc(100vh-9rem)]",
-              "p-7 sm:p-10",
+              "px-6 pt-6 pb-7 sm:px-9 sm:pt-8 sm:pb-9",
               "rounded-[2.5rem]",
               "shadow-[0_40px_100px_rgba(13,96,27,0.08)]",
               "flex flex-col items-center",
               "border border-white/40 bg-white/70 backdrop-blur-[24px]",
             ].join(" ")}
           >
-            <div className="mb-10 text-center">
-              <div className="bg-[#0d601b]/10 w-16 h-16 rounded-full flex items-center justify-center mb-6 mx-auto text-[#0d601b]">
-                <IconPlant className="w-9 h-9" />
+            <div className="mb-5 text-center sm:mb-6">
+              <div className="bg-[#0d601b]/10 mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full text-[#0d601b] sm:mb-4 sm:h-16 sm:w-16">
+                <IconPlant className="h-8 w-8 sm:h-9 sm:w-9" />
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-[#181d17] mb-2">Админ-панель MiksFreshGold.by</h1>
-              <p className="text-[#40493d] text-base">Введите логин и пароль</p>
+              <h1 className="mb-1 text-2xl font-extrabold tracking-tight text-[#181d17] sm:mb-2 sm:text-3xl">Админ-панель Миксголдфрукт</h1>
+              <p className="text-sm text-[#40493d] sm:text-base">Введите логин и пароль</p>
             </div>
 
             <form
-              className="w-full space-y-6"
+              className="w-full space-y-4 sm:space-y-5"
               onSubmit={async (e) => {
                 e.preventDefault();
                 setError(null);
@@ -1107,6 +1162,7 @@ export default function Admin() {
 
                   setToken(ACCESS_TOKEN_KEY, data.accessToken);
                   setToken(REFRESH_TOKEN_KEY, data.refreshToken);
+                  setLoginHelpOpen(false);
                   setAuthed(true);
                   setIsAuthed(true);
                 } catch {
@@ -1118,7 +1174,7 @@ export default function Admin() {
                 <label className="block text-sm font-semibold text-[#40493d] ml-1">Логин</label>
                 <input
                   autoComplete="username"
-                  className="w-full bg-white/50 border border-[#c0c9ba]/30 rounded-xl px-5 py-4 text-[#181d17] focus:bg-white focus:ring-1 focus:ring-[#0d601b] focus:outline-none transition-all duration-300 placeholder:text-[#707a6c]"
+                  className="w-full rounded-xl border border-[#c0c9ba]/30 bg-white/50 px-4 py-3 text-[#181d17] transition-all duration-300 placeholder:text-[#707a6c] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0d601b] sm:px-5 sm:py-3.5"
                   placeholder="Введите ваш логин"
                   type="text"
                   value={login}
@@ -1130,7 +1186,7 @@ export default function Admin() {
                 <label className="block text-sm font-semibold text-[#40493d] ml-1">Пароль</label>
                 <input
                   autoComplete="current-password"
-                  className="w-full bg-white/50 border border-[#c0c9ba]/30 rounded-xl px-5 py-4 text-[#181d17] focus:bg-white focus:ring-1 focus:ring-[#0d601b] focus:outline-none transition-all duration-300 placeholder:text-[#707a6c]"
+                  className="w-full rounded-xl border border-[#c0c9ba]/30 bg-white/50 px-4 py-3 text-[#181d17] transition-all duration-300 placeholder:text-[#707a6c] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#0d601b] sm:px-5 sm:py-3.5"
                   placeholder="Введите пароль"
                   type="password"
                   value={password}
@@ -1145,7 +1201,7 @@ export default function Admin() {
               ) : null}
 
               <button
-                className="w-full text-white font-bold py-4 rounded-xl active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#0d601b]/20 text-lg mt-4 bg-[linear-gradient(135deg,#0d601b_0%,#2d7931_100%)] disabled:opacity-60"
+                className="mt-2 w-full rounded-xl bg-[linear-gradient(135deg,#0d601b_0%,#2d7931_100%)] py-3.5 text-base font-bold text-white shadow-lg shadow-[#0d601b]/20 transition-all duration-200 active:scale-[0.98] disabled:opacity-60 sm:mt-3 sm:py-4 sm:text-lg"
                 disabled={isCheckingAuth}
                 type="submit"
               >
@@ -1153,7 +1209,7 @@ export default function Admin() {
               </button>
             </form>
 
-            <div className="mt-8 flex flex-col items-center gap-6 w-full">
+            <div className="mt-5 flex w-full shrink-0 flex-col items-center gap-3 sm:mt-6 sm:gap-4">
               <button
                 className="text-[#0d601b] font-medium hover:bg-[#0d601b]/5 px-4 py-2 rounded-lg transition-colors text-sm"
                 onClick={() => {
@@ -1165,21 +1221,72 @@ export default function Admin() {
               >
                 Очистить
               </button>
-              <div className="w-full h-px bg-[#c0c9ba]/20" />
+              <div className="h-px w-full max-w-[min(100%,20rem)] shrink-0 bg-[#c0c9ba]/25" />
               <button
-                className="flex items-center gap-2 text-[#40493d] hover:text-[#0d601b] transition-colors font-semibold group"
+                className="group inline-flex min-h-[2.75rem] w-full max-w-[19rem] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-[#40493d] transition-colors hover:bg-[#f3f6f1] hover:text-[#0d601b] active:scale-[0.99] sm:min-h-[3rem] sm:gap-2.5 sm:py-3"
                 type="button"
                 onClick={() => navigate("/")}
               >
-                <IconArrowBack className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                Назад на главную
+                <IconArrowBack className="h-4 w-4 shrink-0 transition-transform group-hover:-translate-x-0.5" />
+                <span className="leading-tight">Назад на главную</span>
               </button>
             </div>
           </div>
         </main>
 
+        {loginHelpOpen ? (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center sm:p-6" role="presentation">
+            <button
+              type="button"
+              aria-label="Закрыть помощь"
+              className="absolute inset-0 bg-[#1a1c1a]/40 backdrop-blur-[2px] motion-reduce:backdrop-blur-none"
+              onClick={() => setLoginHelpOpen(false)}
+            />
+            <div
+              id="admin-login-help-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="admin-login-help-title"
+              className="relative z-10 w-full max-w-md rounded-2xl border border-[#c0c9ba]/30 bg-white/95 p-6 shadow-2xl sm:p-8"
+            >
+              <h2 id="admin-login-help-title" className="text-lg font-bold text-[#181d17]">
+                Помощь
+              </h2>
+              <div className="mt-4 space-y-4 text-sm leading-relaxed text-[#40493d]">
+                <p>
+                  Эта страница — <strong className="text-[#181d17]">только для сотрудников магазина</strong>. Здесь настраивают
+                  каталог и заказы. Если вы просто хотите заказать овощи и фрукты, вернитесь на главный сайт — кнопка
+                  «Назад на главную» внизу формы.
+                </p>
+                <p>
+                  Логин и пароль для входа вам выдаёт <strong className="text-[#181d17]">тот, кто ведёт сайт или магазин</strong>
+                  (руководитель, администратор). Без этих данных войти нельзя — мы не присылаем пароль по телефону или почте
+                  автоматически.
+                </p>
+                <p>
+                  Пишет, что <strong className="text-[#181d17]">логин или пароль неверный</strong>? Проверьте, что не включён
+                  Caps Lock и что выбрана правильная раскладка клавиатуры (русская/английская). Если всё равно не пускает —
+                  попросите новый пароль у того, кто вас подключает к админке.
+                </p>
+                <p>
+                  Сообщение <strong className="text-[#181d17]">«Сервер недоступен»</strong> значит, что сейчас не отвечает
+                  часть сайта с нашей стороны. Подождите немного и попробуйте снова; если не проходит долго — напишите или
+                  позвоните тому, кто обслуживает сайт.
+                </p>
+              </div>
+              <button
+                className="mt-6 w-full rounded-xl bg-[#0d601b] py-3 text-sm font-bold text-white transition-colors hover:bg-[#195324] active:scale-[0.99]"
+                type="button"
+                onClick={() => setLoginHelpOpen(false)}
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
-          <span className="text-sm text-[#40493d]">© 2024 Админ-панель «MiksFreshGold.by». Все права защищены.</span>
+          <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
           <div className="flex gap-6">
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
               Политика конфиденциальности
@@ -1214,7 +1321,7 @@ export default function Admin() {
               <div className="bg-primary p-2 rounded-lg text-white">
                 <IconLeaf className="w-5 h-5" />
               </div>
-              <h1 className="text-xl font-bold tracking-tight text-primary">MiksFreshGold.by</h1>
+              <h1 className="text-xl font-bold tracking-tight text-primary">Админ панель</h1>
             </div>
             <nav className="flex-1 px-4 space-y-1">
               <a
@@ -1472,7 +1579,13 @@ export default function Admin() {
                     <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                   </svg>
                 </button>
-                <h2 className="truncate text-base font-semibold sm:text-lg">{ADMIN_TAB_LABELS[activeTab]}</h2>
+                <h2 className="truncate text-base font-semibold sm:text-lg">
+                  <span className="font-bold text-primary">Админ панель</span>
+                  <span className="mx-1.5 font-normal text-slate-400" aria-hidden>
+                    ·
+                  </span>
+                  <span>{ADMIN_TAB_LABELS[activeTab]}</span>
+                </h2>
               </div>
               <div className="flex shrink-0 items-center gap-2 sm:gap-4">
                 <Link
@@ -1498,10 +1611,6 @@ export default function Admin() {
                   type="button"
                 >
                   <IconSearch className="h-5 w-5" />
-                </button>
-                <button className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                  <IconBell className="h-5 w-5" />
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500 dark:border-slate-900" />
                 </button>
                 <button
                   className="hidden items-center gap-2 rounded-xl px-3 py-2 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 sm:flex"
@@ -1672,13 +1781,13 @@ export default function Admin() {
                         }
 
                         if (newProductImageFile) {
-                          if (newProductImageFile.size > 5 * 1024 * 1024) {
+                          if (newProductImageFile.size > MAX_IMAGE_BYTES) {
                             setError("Файл слишком большой. Максимум 5 МБ.");
                             return;
                           }
 
-                          if (!newProductImageFile.type.startsWith("image/")) {
-                            setError("Можно загрузить только изображение.");
+                          if (!isLikelyImageFile(newProductImageFile)) {
+                            setError("Можно загрузить только изображение (JPG, PNG, WEBP, HEIC/HEIF).");
                             return;
                           }
                         }
@@ -1707,8 +1816,8 @@ export default function Admin() {
                           setNewProductImageFile(null);
                           setNewProductSeasonal(false);
                           await loadRecentProducts();
-                        } catch {
-                          setError("Не удалось сохранить товар. Проверьте сервер и попробуйте ещё раз.");
+                        } catch (err) {
+                          setError(getUploadErrorMessage(err, "Не удалось сохранить товар. Проверьте сервер и попробуйте ещё раз."));
                         } finally {
                           setIsSavingProduct(false);
                         }
@@ -1790,11 +1899,18 @@ export default function Admin() {
                         <label className="block text-sm font-medium mb-1.5">Фото товара (необязательно)</label>
                         <label className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl h-48 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group overflow-hidden">
                           <input
-                            accept="image/*"
+                            accept="image/*,.heic,.heif"
                             className="hidden"
                             type="file"
                             onChange={(e) => {
-                              const f = e.target.files?.[0] ?? null;
+                              const input = e.currentTarget;
+                              const f = input.files?.[0] ?? null;
+                              if (f && f.size > MAX_IMAGE_BYTES) {
+                                setError("Файл слишком большой. Максимум 5 МБ.");
+                                setNewProductImageFile(null);
+                                input.value = "";
+                                return;
+                              }
                               setNewProductImageFile(f);
                             }}
                           />
@@ -1804,7 +1920,7 @@ export default function Admin() {
                             <div className="flex flex-col items-center justify-center">
                               <IconUpload className="w-10 h-10 text-slate-400 group-hover:text-primary transition-colors" />
                               <p className="text-sm text-slate-500 mt-2">Нажмите, чтобы выбрать фото</p>
-                              <p className="text-xs text-slate-400 mt-1">PNG, JPG до 5 МБ</p>
+                              <p className="text-xs text-slate-400 mt-1">JPG, PNG, WEBP, HEIC — до 5 МБ</p>
                             </div>
                           )}
                         </label>
@@ -2181,22 +2297,26 @@ export default function Admin() {
                             <IconUpload className="w-4 h-4" />
                             {uploadingHomeCardSlot === card.slot ? "Загрузка..." : "Загрузить фото"}
                             <input
-                              accept="image/*"
+                              accept="image/*,.heic,.heif"
                               className="hidden"
                               type="file"
                               onChange={(e) => {
                                 const input = e.currentTarget;
                                 const file = e.target.files?.[0] ?? null;
                                 if (!file) return;
+                                if (file.size > MAX_IMAGE_BYTES) {
+                                  setError("Файл слишком большой. Максимум 5 МБ.");
+                                  input.value = "";
+                                  return;
+                                }
                                 setError(null);
                                 void (async () => {
                                   try {
                                     await uploadHomeCardImage(card.slot, file);
                                   } catch (err) {
-                                    const message = String(err);
-                                    if (message.includes("file_too_large")) setError("Файл слишком большой. Максимум 5 МБ.");
-                                    else if (message.includes("invalid_file_type")) setError("Можно загрузить только изображение.");
-                                    else setError(`Не удалось загрузить изображение для карточки #${card.slot}.`);
+                                    setError(
+                                      getUploadErrorMessage(err, `Не удалось загрузить изображение для карточки #${card.slot}.`),
+                                    );
                                   } finally {
                                     // Если элемент уже размонтирован, value сбрасывать нельзя.
                                     if (input && input.isConnected) input.value = "";
@@ -2205,6 +2325,7 @@ export default function Admin() {
                               }}
                             />
                           </label>
+                          <p className="text-xs text-slate-400">JPG, PNG, WEBP, HEIC — до 5 МБ</p>
                         </div>
                         <button
                           className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"

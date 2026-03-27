@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+function BrandLeafMark(props: { className?: string }) {
+  return (
+    <svg className={props.className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 21v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 14c-5 0-8-3.5-8-8 4.5 0 8 3 8 8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M12 14c5 0 8-3.5 8-8-4.5 0-8 3-8 8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M7 21h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 type HeaderProps = {
   variant?: "home" | "catalog";
   showSearch?: boolean;
@@ -81,9 +92,17 @@ export default function Header({
       data-purpose="navigation-header"
     >
       <div className="flex items-center gap-8 lg:gap-12 min-w-0">
-        <Link className="text-2xl font-black text-[#1f642e] shrink-0" to="/">
-          MiksFreshGold.by
-        </Link>
+        <div className="flex min-w-0 items-center gap-2.5 shrink-0">
+          <span
+            className="pointer-events-none flex items-center justify-center rounded-xl bg-[#0d601b] p-1.5 text-white shadow-sm shadow-[#0d601b]/25"
+            aria-hidden="true"
+          >
+            <BrandLeafMark className="h-5 w-5" />
+          </span>
+          <Link className="truncate text-2xl font-black text-[#1f642e]" to="/">
+            Миксголдфрукт
+          </Link>
+        </div>
 
         <nav className="hidden md:flex gap-8">
           <Link className={navClass(isHome)} to="/">
@@ -127,13 +146,42 @@ export default function Header({
         <div className="md:hidden relative z-[70]">
           <button
             type="button"
-            aria-label="Меню"
+            aria-label={mobileMenuOpen ? "Закрыть меню" : "Меню"}
             aria-expanded={mobileMenuOpen}
             className="h-12 w-12 inline-flex items-center justify-center hover:bg-[#f3f4f0] transition-colors rounded-xl"
             onClick={() => setMobileMenuOpen((v) => !v)}
           >
-            <svg className="w-6 h-6 text-[#1f642e]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <svg className="h-6 w-6 overflow-visible text-[#1f642e]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <g
+                  style={{
+                    transformOrigin: "12px 12px",
+                    transformBox: "view-box",
+                    transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transform: mobileMenuOpen ? "translateY(5px) rotate(45deg)" : "translateY(0) rotate(0deg)",
+                  }}
+                >
+                  <line x1="4" y1="7" x2="20" y2="7" />
+                </g>
+                <g
+                  style={{
+                    transition: "opacity 0.2s ease-out",
+                    opacity: mobileMenuOpen ? 0 : 1,
+                  }}
+                >
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                </g>
+                <g
+                  style={{
+                    transformOrigin: "12px 12px",
+                    transformBox: "view-box",
+                    transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transform: mobileMenuOpen ? "translateY(-5px) rotate(-45deg)" : "translateY(0) rotate(0deg)",
+                  }}
+                >
+                  <line x1="4" y1="17" x2="20" y2="17" />
+                </g>
+              </g>
             </svg>
           </button>
 
@@ -142,17 +190,38 @@ export default function Header({
               <button
                 type="button"
                 aria-label="Закрыть меню"
-                className="fixed left-0 right-0 bottom-0 top-[80px] z-[60] bg-[#f9faf6]/85 backdrop-blur-sm"
+                className="fixed left-0 right-0 bottom-0 top-[80px] z-[60] bg-[#1a1c1a]/35 backdrop-blur-lg motion-reduce:backdrop-blur-none"
                 onClick={() => setMobileMenuOpen(false)}
               />
-              <div className="fixed left-0 right-0 top-[80px] z-[70] rounded-t-none rounded-b-[2.25rem] bg-[#f9faf6] shadow-2xl shadow-black/15 overflow-hidden border-t border-[#1f642e]/10">
-                <div className="p-2">
+              <div
+                className={[
+                  "fixed z-[70] left-3 right-3 top-[calc(80px+0.625rem)]",
+                  "max-h-[min(70vh,520px)] min-h-[min(48vh,340px)] flex flex-col isolate",
+                  "rounded-[1.75rem] overflow-hidden",
+                  "bg-gradient-to-br from-white/90 via-white/78 to-white/85",
+                  "backdrop-blur-2xl backdrop-saturate-125 backdrop-brightness-[1.02] motion-reduce:backdrop-blur-none motion-reduce:backdrop-saturate-100",
+                  "border border-white/75 shadow-[0_8px_32px_rgba(0,0,0,0.1),0_1px_0_rgba(255,255,255,0.85)_inset]",
+                  "ring-1 ring-white/55",
+                ].join(" ")}
+                role="dialog"
+                aria-label="Меню навигации"
+              >
+                <div className="shrink-0 flex justify-center pt-3 pb-1">
+                  <div className="h-1 w-10 rounded-full bg-white/55 shadow-[0_1px_0_rgba(255,255,255,0.95)_inset]" aria-hidden />
+                </div>
+                <nav className="flex-1 flex flex-col gap-2 px-4 pb-3 overflow-y-auto">
                   <Link
                     className={[
-                      "block px-3 py-3 rounded-xl text-sm font-semibold transition-colors",
+                      "relative z-10 block px-4 py-4 rounded-2xl text-base tracking-tight",
+                      "transition-[color,background-color,box-shadow,transform,border-color] duration-200",
+                      "active:scale-[0.99] backdrop-blur-lg backdrop-saturate-110 motion-reduce:backdrop-blur-none",
                       isHome
-                        ? "bg-white text-[#1f642e] shadow-sm shadow-black/5"
-                        : "text-[#1a1c1a] hover:bg-[#e7e9e5]",
+                        ? "font-bold bg-white/95 text-[#1f642e] border border-[#1f642e]/40 shadow-[0_6px_18px_rgba(31,100,46,0.15),inset_0_1px_0_rgba(255,255,255,0.95)]"
+                        : [
+                            "font-semibold text-[#1a1c1a] bg-white/62 border border-white/65",
+                            "shadow-[0_4px_14px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.75)]",
+                            "hover:bg-white/78 hover:border-white/80",
+                          ].join(" "),
                     ].join(" ")}
                     to="/"
                     onClick={() => setMobileMenuOpen(false)}
@@ -161,10 +230,16 @@ export default function Header({
                   </Link>
                   <Link
                     className={[
-                      "block px-3 py-3 rounded-xl text-sm font-semibold transition-colors",
+                      "relative z-10 block px-4 py-4 rounded-2xl text-base tracking-tight",
+                      "transition-[color,background-color,box-shadow,transform,border-color] duration-200",
+                      "active:scale-[0.99] backdrop-blur-lg backdrop-saturate-110 motion-reduce:backdrop-blur-none",
                       isCatalogActive
-                        ? "bg-white text-[#1f642e] shadow-sm shadow-black/5"
-                        : "text-[#1a1c1a] hover:bg-[#e7e9e5]",
+                        ? "font-bold bg-white/95 text-[#1f642e] border border-[#1f642e]/40 shadow-[0_6px_18px_rgba(31,100,46,0.15),inset_0_1px_0_rgba(255,255,255,0.95)]"
+                        : [
+                            "font-semibold text-[#1a1c1a] bg-white/62 border border-white/65",
+                            "shadow-[0_4px_14px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.75)]",
+                            "hover:bg-white/78 hover:border-white/80",
+                          ].join(" "),
                     ].join(" ")}
                     to="/catalog"
                     onClick={() => setMobileMenuOpen(false)}
@@ -172,15 +247,23 @@ export default function Header({
                     Каталог
                   </Link>
                   {showRightSection ? (
-                    <button
-                      type="button"
-                      className="mt-1 block w-full px-3 py-3 rounded-xl text-sm font-semibold transition-colors text-[#1a1c1a] hover:bg-[#e7e9e5] text-left"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Корзина
-                    </button>
+                    <>
+                      <div className="my-1 border-t border-white/45" />
+                      <button
+                        type="button"
+                        className={[
+                          "mt-auto w-full px-4 py-4 rounded-2xl text-base font-bold text-center text-white",
+                          "bg-[#1f642e] backdrop-blur-md backdrop-saturate-110 motion-reduce:backdrop-blur-none",
+                          "border border-white/30 shadow-[0_8px_22px_rgba(31,100,46,0.28),inset_0_1px_0_rgba(255,255,255,0.28)]",
+                          "hover:bg-[#195324] transition-[background-color,transform] duration-200 active:scale-[0.99]",
+                        ].join(" ")}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Корзина
+                      </button>
+                    </>
                   ) : null}
-                </div>
+                </nav>
               </div>
             </>
           ) : null}

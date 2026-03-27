@@ -212,6 +212,7 @@ export default function Catalog() {
     };
   }, [query]);
 
+  /** Демо-каталог только для разработки, если API пустой или недоступен. В production сборке не используется. */
   const mockProducts = useMemo<Product[]>(
     () => [
       {
@@ -288,7 +289,7 @@ export default function Catalog() {
     [],
   );
 
-  const products = apiProducts.length ? apiProducts : mockProducts;
+  const products = import.meta.env.PROD ? apiProducts : apiProducts.length > 0 ? apiProducts : mockProducts;
 
   const fallbackCategories = useMemo(
     () => [
@@ -361,7 +362,7 @@ export default function Catalog() {
 
   const organicBgStyle = useMemo<React.CSSProperties>(
     () => ({
-      backgroundImage: "radial-gradient(circle at 2px 2px, rgba(31, 100, 46, 0.05) 1px, transparent 0)",
+      backgroundImage: "radial-gradient(circle at 2px 2px, rgba(46, 125, 50, 0.06) 1px, transparent 0)",
       backgroundSize: "40px 40px",
     }),
     [],
@@ -373,7 +374,7 @@ export default function Catalog() {
   };
 
   return (
-    <div className="bg-[#f9faf6] text-[#1a1c1a] overflow-x-hidden" style={organicBgStyle}>
+    <div className="bg-green-50 text-[#1a1c1a] overflow-x-hidden" style={organicBgStyle}>
       <Header
         variant="catalog"
         searchValue={query}
@@ -651,7 +652,7 @@ export default function Catalog() {
                       />
                     </svg>
                   </div>
-                  <span className="text-xl font-bold text-forest-green">MiksFreshGold.by</span>
+                  <span className="text-xl font-bold text-forest-green">Миксголдфрукт</span>
                 </div>
                 <p className="text-gray-500 text-sm leading-relaxed mb-6">
                   Мы верим, что качественная еда должна быть доступна каждому. Доставляем здоровье прямо в ваш холодильник.
@@ -757,13 +758,13 @@ export default function Catalog() {
                         strokeWidth="2"
                       />
                     </svg>
-                    Ежедневно с 8:00 до 22:00
+                    Ежедневно 9.00-21.00
                   </li>
                 </ul>
               </div>
             </div>
             <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
-              <p>© 2026 MiksFreshGold.by. Все права защищены.</p>
+              <p>© 2026 Миксголдфрукт. Все права защищены.</p>
               <span className="text-gray-300 hidden md:inline">•</span>
               <p className="text-gray-400">Версия 26.03.2026-v1</p>
               <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
