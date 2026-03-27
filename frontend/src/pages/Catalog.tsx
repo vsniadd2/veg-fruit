@@ -12,7 +12,7 @@ type Product = {
   name: string;
   country: string;
   imageUrl: string;
-  category: string; // categoryId from backend (or slug in mock fallback)
+  category: string; // categoryId (uuid) from backend
   categoryName?: string | null; // for convenience in UI
   price?: number | null;
   badge?: ProductBadge;
@@ -212,84 +212,8 @@ export default function Catalog() {
     };
   }, [query]);
 
-  /** Демо-каталог только для разработки, если API пустой или недоступен. В production сборке не используется. */
-  const mockProducts = useMemo<Product[]>(
-    () => [
-      {
-        id: "tomatoes",
-        name: "Спелые Томаты",
-        country: "Испания",
-        category: "vegetables",
-        imageUrl:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBja0IoWqP351BgR5QksrVI4htKIHV8bJSfj8LYjlIzJQRCAte1f5ufYYOStcbmRZw9Yo-NtD7Fd5aJUyV6t6U7SHsUaAkeL90MpU3NrDFmiKkMhv9_NP9m0GcEGj5x4nwkY2gxGv76-aNz8TjAq5Wsq3wFP5-8TdtyAYVDTsSwmvgUor6GvdWvwZxeqLG-0THkc6s-DEPn61D9atU-Q81mNMWQHghHJiwqu52D4zqJQa_SkMGnTd34XisrWx8Pu4kKB8mlriTsK7Aa",
-        badge: { kind: "seasonal", label: "СЕЗОННОЕ", className: "bg-white/90 backdrop-blur text-[#2d6a4f]" },
-      },
-      {
-        id: "mango",
-        name: "Сочное Манго",
-        country: "Узбекистан",
-        category: "fruits",
-        imageUrl:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuAhfC1ekrSFGxXUtU79rm-R0x6k7poYE8P_frP6wf7nFkhoy8NiXz-XC2Lf8olmX_ZuClLgDKwGiUlXyjKc1wTHCisXZl4wybIU0ijVCMt_Ed518KshpHcWCmkOXJH__nboBvdZ0e7dGO2HwdoLqFl71wi2i0jFIxmlU_uNfvUithlQk07u7YF-j6zCxQvsjPx67qRkW_a0ziWgQJsiJEP6bYSHcTpml0s3TTjZEdIQyOx8wDBuxXuslmDndokKkwjKvBvmg8UTkKQ8",
-        badge: { kind: "hit", label: "ХИТ", className: "bg-primary text-white" },
-      },
-      {
-        id: "carrot",
-        name: "Фермерская Морковь",
-        country: "Беларусь",
-        category: "vegetables",
-        imageUrl:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuDqmMBHnpVB6nz5XbziJW6zDTa8kwwjI8H4qe-ipsKvHNRBrZdcgbiUDbt9V0Hya-NF28lJaupMCh4dJwcx_sAxoNOfHdBsofCG2lNp5Y1ss_GNivJRFV05Z5WPYHgFAmbR0Sv90zyhYv_EA1uE81CnA5ovYiDGoJHElcFDkhl6djVSb15hh-0hO-TH5U1_JETU5f-WuukX469m_NQ0_IRKxPdT7DUDgESA3UyfAWyhl9jPAT19EN-yBj_DE9w1oMBMBuu8oTNnfWD3",
-      },
-      {
-        id: "pepper",
-        name: "Сладкий Перец",
-        country: "Турция",
-        category: "vegetables",
-        imageUrl:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBsEZJlkLe8l9ac08OTdUbSbE2Y_wVtSLLe-j8j58ltxGqVanMUsTaIpPLrGF0bdF35yGRbWQfMn1mIqRJ66jiW3_2uumdxd8h2V8zzbjmIQ5KlofXfIQBltS8RIADqxehcCLaT8FJH6wU1W6nVS_KhHkd6lDMvKGCikXtsOb9m3ReLIjLiaS4l055Ss7rENFa6Zonbmjx1CS48agGbRh8w84ipErXvIKdKPgRIarQbdtep03djZVXkYNMHHZTuLKdvWKMXjrIV2YAn",
-      },
-      {
-        id: "broccoli",
-        name: "Брокколи",
-        country: "Италия",
-        category: "vegetables",
-        imageUrl:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBfZetvkpCX111aefA4KrLKszo51EVyFsLkFzVc09t6odu0FuOK5ALwECNrhx2LdQ_bUyI_eXI2o2prbL9Bz_v38CMykFxINF0T7bxDPBXTkMtqpByVnPdlj-0e7tsBxMOMowctIm6mh2WccoJH6AnY5Na8mk1dH7VHfuuVhJZ7vwJNPHTi7bj1PTIBBYrmo7LfhYt-ssxZMBDuo2rDuHx-dM5RpYE3mijSLpHyzYKT3UYdMgHtcnd9UwK2PEgv_lvYLmdaeD8XDaVw",
-        badge: { kind: "organic", label: "ОРГАНИК", className: "bg-white/90 backdrop-blur text-[#2d6a4f]" },
-      },
-      {
-        id: "cucumber",
-        name: "Зеленый Огурец",
-        country: "Беларусь",
-        category: "vegetables",
-        imageUrl:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuCZuyv7gAT0iEEfS0tDNOBcFbWH1YfUF2HjAXPG5dePzHrYURkg_ohin73xB_Iq_ocNsb8ELjjuSx_1j7BXA8YcAK7nrowYeI9wFvnkt7QczAZP8peK0jG8UBk3ahxggRfJeqZsUdBYB4OH_UVluM3QekuOZrcQS1-PFzoCdjvm-xOoPTJvYW5IP6c7dpGprUr56nBWiWxclmpL30nCcDS2U4dnxhYEva6IZ0krbLRPGpbpd3g6sF4urxj0jv0Y41AptOxXQIHHVxQs",
-      },
-      // Duplicate + vary names/countries to reach 24 items for pagination demo
-      { id: "tomatoes-2", name: "Томаты Черри", country: "Испания", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBja0IoWqP351BgR5QksrVI4htKIHV8bJSfj8LYjlIzJQRCAte1f5ufYYOStcbmRZw9Yo-NtD7Fd5aJUyV6t6U7SHsUaAkeL90MpU3NrDFmiKkMhv9_NP9m0GcEGj5x4nwkY2gxGv76-aNz8TjAq5Wsq3wFP5-8TdtyAYVDTsSwmvgUor6GvdWvwZxeqLG-0THkc6s-DEPn61D9atU-Q81mNMWQHghHJiwqu52D4zqJQa_SkMGnTd34XisrWx8Pu4kKB8mlriTsK7Aa" },
-      { id: "mango-2", name: "Манго Премиум", country: "Узбекистан", category: "fruits", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuAhfC1ekrSFGxXUtU79rm-R0x6k7poYE8P_frP6wf7nFkhoy8NiXz-XC2Lf8olmX_ZuClLgDKwGiUlXyjKc1wTHCisXZl4wybIU0ijVCMt_Ed518KshpHcWCmkOXJH__nboBvdZ0e7dGO2HwdoLqFl71wi2i0jFIxmlU_uNfvUithlQk07u7YF-j6zCxQvsjPx67qRkW_a0ziWgQJsiJEP6bYSHcTpml0s3TTjZEdIQyOx8wDBuxXuslmDndokKkwjKvBvmg8UTkKQ8" },
-      { id: "carrot-2", name: "Морковь Молодая", country: "Беларусь", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDqmMBHnpVB6nz5XbziJW6zDTa8kwwjI8H4qe-ipsKvHNRBrZdcgbiUDbt9V0Hya-NF28lJaupMCh4dJwcx_sAxoNOfHdBsofCG2lNp5Y1ss_GNivJRFV05Z5WPYHgFAmbR0Sv90zyhYv_EA1uE81CnA5ovYiDGoJHElcFDkhl6djVSb15hh-0hO-TH5U1_JETU5f-WuukX469m_NQ0_IRKxPdT7DUDgESA3UyfAWyhl9jPAT19EN-yBj_DE9w1oMBMBuu8oTNnfWD3" },
-      { id: "pepper-2", name: "Перец Красный", country: "Турция", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBsEZJlkLe8l9ac08OTdUbSbE2Y_wVtSLLe-j8j58ltxGqVanMUsTaIpPLrGF0bdF35yGRbWQfMn1mIqRJ66jiW3_2uumdxd8h2V8zzbjmIQ5KlofXfIQBltS8RIADqxehcCLaT8FJH6wU1W6nVS_KhHkd6lDMvKGCikXtsOb9m3ReLIjLiaS4l055Ss7rENFa6Zonbmjx1CS48agGbRh8w84ipErXvIKdKPgRIarQbdtep03djZVXkYNMHHZTuLKdvWKMXjrIV2YAn" },
-      { id: "broccoli-2", name: "Брокколи Органик", country: "Италия", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBfZetvkpCX111aefA4KrLKszo51EVyFsLkFzVc09t6odu0FuOK5ALwECNrhx2LdQ_bUyI_eXI2o2prbL9Bz_v38CMykFxINF0T7bxDPBXTkMtqpByVnPdlj-0e7tsBxMOMowctIm6mh2WccoJH6AnY5Na8mk1dH7VHfuuVhJZ7vwJNPHTi7bj1PTIBBYrmo7LfhYt-ssxZMBDuo2rDuHx-dM5RpYE3mijSLpHyzYKT3UYdMgHtcnd9UwK2PEgv_lvYLmdaeD8XDaVw" },
-      { id: "cucumber-2", name: "Огурец Хрустящий", country: "Беларусь", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuCZuyv7gAT0iEEfS0tDNOBcFbWH1YfUF2HjAXPG5dePzHrYURkg_ohin73xB_Iq_ocNsb8ELjjuSx_1j7BXA8YcAK7nrowYeI9wFvnkt7QczAZP8peK0jG8UBk3ahxggRfJeqZsUdBYB4OH_UVluM3QekuOZrcQS1-PFzoCdjvm-xOoPTJvYW5IP6c7dpGprUr56nBWiWxclmpL30nCcDS2U4dnxhYEva6IZ0krbLRPGpbpd3g6sF4urxj0jv0Y41AptOxXQIHHVxQs" },
-      { id: "tomatoes-3", name: "Томаты Розовые", country: "Испания", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBja0IoWqP351BgR5QksrVI4htKIHV8bJSfj8LYjlIzJQRCAte1f5ufYYOStcbmRZw9Yo-NtD7Fd5aJUyV6t6U7SHsUaAkeL90MpU3NrDFmiKkMhv9_NP9m0GcEGj5x4nwkY2gxGv76-aNz8TjAq5Wsq3wFP5-8TdtyAYVDTsSwmvgUor6GvdWvwZxeqLG-0THkc6s-DEPn61D9atU-Q81mNMWQHghHJiwqu52D4zqJQa_SkMGnTd34XisrWx8Pu4kKB8mlriTsK7Aa" },
-      { id: "mango-3", name: "Манго Спелое", country: "Узбекистан", category: "fruits", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuAhfC1ekrSFGxXUtU79rm-R0x6k7poYE8P_frP6wf7nFkhoy8NiXz-XC2Lf8olmX_ZuClLgDKwGiUlXyjKc1wTHCisXZl4wybIU0ijVCMt_Ed518KshpHcWCmkOXJH__nboBvdZ0e7dGO2HwdoLqFl71wi2i0jFIxmlU_uNfvUithlQk07u7YF-j6zCxQvsjPx67qRkW_a0ziWgQJsiJEP6bYSHcTpml0s3TTjZEdIQyOx8wDBuxXuslmDndokKkwjKvBvmg8UTkKQ8" },
-      { id: "carrot-3", name: "Морковь Сладкая", country: "Беларусь", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDqmMBHnpVB6nz5XbziJW6zDTa8kwwjI8H4qe-ipsKvHNRBrZdcgbiUDbt9V0Hya-NF28lJaupMCh4dJwcx_sAxoNOfHdBsofCG2lNp5Y1ss_GNivJRFV05Z5WPYHgFAmbR0Sv90zyhYv_EA1uE81CnA5ovYiDGoJHElcFDkhl6djVSb15hh-0hO-TH5U1_JETU5f-WuukX469m_NQ0_IRKxPdT7DUDgESA3UyfAWyhl9jPAT19EN-yBj_DE9w1oMBMBuu8oTNnfWD3" },
-      { id: "pepper-3", name: "Перец Жёлтый", country: "Турция", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBsEZJlkLe8l9ac08OTdUbSbE2Y_wVtSLLe-j8j58ltxGqVanMUsTaIpPLrGF0bdF35yGRbWQfMn1mIqRJ66jiW3_2uumdxd8h2V8zzbjmIQ5KlofXfIQBltS8RIADqxehcCLaT8FJH6wU1W6nVS_KhHkd6lDMvKGCikXtsOb9m3ReLIjLiaS4l055Ss7rENFa6Zonbmjx1CS48agGbRh8w84ipErXvIKdKPgRIarQbdtep03djZVXkYNMHHZTuLKdvWKMXjrIV2YAn" },
-      { id: "broccoli-3", name: "Брокколи Свежая", country: "Италия", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBfZetvkpCX111aefA4KrLKszo51EVyFsLkFzVc09t6odu0FuOK5ALwECNrhx2LdQ_bUyI_eXI2o2prbL9Bz_v38CMykFxINF0T7bxDPBXTkMtqpByVnPdlj-0e7tsBxMOMowctIm6mh2WccoJH6AnY5Na8mk1dH7VHfuuVhJZ7vwJNPHTi7bj1PTIBBYrmo7LfhYt-ssxZMBDuo2rDuHx-dM5RpYE3mijSLpHyzYKT3UYdMgHtcnd9UwK2PEgv_lvYLmdaeD8XDaVw" },
-      { id: "cucumber-3", name: "Огурец Зелёный", country: "Беларусь", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuCZuyv7gAT0iEEfS0tDNOBcFbWH1YfUF2HjAXPG5dePzHrYURkg_ohin73xB_Iq_ocNsb8ELjjuSx_1j7BXA8YcAK7nrowYeI9wFvnkt7QczAZP8peK0jG8UBk3ahxggRfJeqZsUdBYB4OH_UVluM3QekuOZrcQS1-PFzoCdjvm-xOoPTJvYW5IP6c7dpGprUr56nBWiWxclmpL30nCcDS2U4dnxhYEva6IZ0krbLRPGpbpd3g6sF4urxj0jv0Y41AptOxXQIHHVxQs" },
-      { id: "tomatoes-4", name: "Томаты Сливка", country: "Испания", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBja0IoWqP351BgR5QksrVI4htKIHV8bJSfj8LYjlIzJQRCAte1f5ufYYOStcbmRZw9Yo-NtD7Fd5aJUyV6t6U7SHsUaAkeL90MpU3NrDFmiKkMhv9_NP9m0GcEGj5x4nwkY2gxGv76-aNz8TjAq5Wsq3wFP5-8TdtyAYVDTsSwmvgUor6GvdWvwZxeqLG-0THkc6s-DEPn61D9atU-Q81mNMWQHghHJiwqu52D4zqJQa_SkMGnTd34XisrWx8Pu4kKB8mlriTsK7Aa" },
-      { id: "mango-4", name: "Манго Ароматное", country: "Узбекистан", category: "fruits", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuAhfC1ekrSFGxXUtU79rm-R0x6k7poYE8P_frP6wf7nFkhoy8NiXz-XC2Lf8olmX_ZuClLgDKwGiUlXyjKc1wTHCisXZl4wybIU0ijVCMt_Ed518KshpHcWCmkOXJH__nboBvdZ0e7dGO2HwdoLqFl71wi2i0jFIxmlU_uNfvUithlQk07u7YF-j6zCxQvsjPx67qRkW_a0ziWgQJsiJEP6bYSHcTpml0s3TTjZEdIQyOx8wDBuxXuslmDndokKkwjKvBvmg8UTkKQ8" },
-      { id: "carrot-4", name: "Морковь Мытая", country: "Беларусь", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDqmMBHnpVB6nz5XbziJW6zDTa8kwwjI8H4qe-ipsKvHNRBrZdcgbiUDbt9V0Hya-NF28lJaupMCh4dJwcx_sAxoNOfHdBsofCG2lNp5Y1ss_GNivJRFV05Z5WPYHgFAmbR0Sv90zyhYv_EA1uE81CnA5ovYiDGoJHElcFDkhl6djVSb15hh-0hO-TH5U1_JETU5f-WuukX469m_NQ0_IRKxPdT7DUDgESA3UyfAWyhl9jPAT19EN-yBj_DE9w1oMBMBuu8oTNnfWD3" },
-      { id: "pepper-4", name: "Перец Сочный", country: "Турция", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBsEZJlkLe8l9ac08OTdUbSbE2Y_wVtSLLe-j8j58ltxGqVanMUsTaIpPLrGF0bdF35yGRbWQfMn1mIqRJ66jiW3_2uumdxd8h2V8zzbjmIQ5KlofXfIQBltS8RIADqxehcCLaT8FJH6wU1W6nVS_KhHkd6lDMvKGCikXtsOb9m3ReLIjLiaS4l055Ss7rENFa6Zonbmjx1CS48agGbRh8w84ipErXvIKdKPgRIarQbdtep03djZVXkYNMHHZTuLKdvWKMXjrIV2YAn" },
-      { id: "broccoli-4", name: "Брокколи Крупная", country: "Италия", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBfZetvkpCX111aefA4KrLKszo51EVyFsLkFzVc09t6odu0FuOK5ALwECNrhx2LdQ_bUyI_eXI2o2prbL9Bz_v38CMykFxINF0T7bxDPBXTkMtqpByVnPdlj-0e7tsBxMOMowctIm6mh2WccoJH6AnY5Na8mk1dH7VHfuuVhJZ7vwJNPHTi7bj1PTIBBYrmo7LfhYt-ssxZMBDuo2rDuHx-dM5RpYE3mijSLpHyzYKT3UYdMgHtcnd9UwK2PEgv_lvYLmdaeD8XDaVw" },
-      { id: "cucumber-4", name: "Огурец Длинный", country: "Беларусь", category: "vegetables", imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuCZuyv7gAT0iEEfS0tDNOBcFbWH1YfUF2HjAXPG5dePzHrYURkg_ohin73xB_Iq_ocNsb8ELjjuSx_1j7BXA8YcAK7nrowYeI9wFvnkt7QczAZP8peK0jG8UBk3ahxggRfJeqZsUdBYB4OH_UVluM3QekuOZrcQS1-PFzoCdjvm-xOoPTJvYW5IP6c7dpGprUr56nBWiWxclmpL30nCcDS2U4dnxhYEva6IZ0krbLRPGpbpd3g6sF4urxj0jv0Y41AptOxXQIHHVxQs" },
-    ],
-    [],
-  );
+  const products = apiProducts;
 
-  const products = import.meta.env.PROD ? apiProducts : apiProducts.length > 0 ? apiProducts : mockProducts;
 
   const fallbackCategories = useMemo(
     () => [
@@ -766,7 +690,7 @@ export default function Catalog() {
             <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
               <p>© 2026 Миксголдфрукт. Все права защищены.</p>
               <span className="text-gray-300 hidden md:inline">•</span>
-              <p className="text-gray-400">Версия 28.03.2026-v1</p>
+              <p className="text-gray-400">Версия 28.03.2026-v2</p>
               <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
                 <Link className="hover:text-forest-green" to="/privacy">
                   Политика конфиденциальности
