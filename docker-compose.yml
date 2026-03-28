@@ -56,6 +56,8 @@ services:
     volumes:
       # Положите на сервер рядом с compose: ssl/fullchain.pem и ssl/privkey.pem
       - ./ssl:/etc/nginx/ssl:ro
+      # Конфиг с хоста — HTTPS не «теряется» из-за кэша образа
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
 
