@@ -50,8 +50,6 @@ type HomeCard = {
   imageUrl: string | null;
 };
 
-const imageObjectUrlCache = new Map<string, string>();
-
 function isLikelyImageFile(file: File) {
   if (file.type.startsWith("image/")) return true;
   return /\.(heic|heif|jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(file.name);
@@ -80,62 +78,16 @@ function getUploadErrorMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
+/** Превью: только <img>. Fetch с Authorization ломает внешние URL (Wikimedia) из‑за CORS. Эндпоинты картинок публичные. */
 function AdminProductImage(props: { src: string | null; alt: string; className?: string }) {
   const { src, alt, className } = props;
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-
   const resolvedSrc = src
     ? src.startsWith("http://") || src.startsWith("https://")
       ? src
       : `${API_BASE_URL}${src}`
     : null;
-
-  useEffect(() => {
-    if (!resolvedSrc) {
-      setObjectUrl(null);
-      return;
-    }
-
-    const cached = imageObjectUrlCache.get(resolvedSrc);
-    if (cached) {
-      setObjectUrl(cached);
-      return;
-    }
-
-    const token = getToken(ACCESS_TOKEN_KEY);
-    if (!token) {
-      // Fallback: попробуем загрузить как есть (вдруг endpoint публичный).
-      setObjectUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const res = await fetch(resolvedSrc, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`http_${res.status}`);
-        const blob = await res.blob();
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        imageObjectUrlCache.set(resolvedSrc, url);
-        setObjectUrl(url);
-      } catch {
-        if (cancelled) return;
-        setObjectUrl(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedSrc]);
-
   if (!resolvedSrc) return null;
-
-  return <img alt={alt} className={className} src={objectUrl ?? resolvedSrc} />;
+  return <img alt={alt} className={className} src={resolvedSrc} />;
 }
 
 const WEIGHT_UNIT_OPTIONS: Array<{ value: "kg" | "g"; label: string }> = [

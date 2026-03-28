@@ -4,6 +4,7 @@ import heicConvert from "heic-convert";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "node:path";
+import sharp from "sharp";
 
 import { initDb, pool } from "./db.js";
 import { registerSuppliersAdminRoutes } from "./suppliersAdminRoutes.js";
@@ -217,6 +218,27 @@ app.get("/api/admin/verify", async (req, res) => {
 app.get("/api/public/categories", async (_req, res) => {
   try {
     const { rows } = await pool.query(`select id, name from categories order by name asc`);
+    res.json({ ok: true, items: rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+/** Топ категорий по числу товаров (для футера и виджетов). Популярность = количество позиций в каталоге. */
+app.get("/api/public/categories/popular", async (req, res) => {
+  const raw = req.query.limit;
+  const n = raw != null ? Number.parseInt(String(raw), 10) : 4;
+  const limit = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 4;
+  try {
+    const { rows } = await pool.query(
+      `select c.id, c.name, count(p.id)::int as product_count
+       from categories c
+       inner join products p on p.category_id = c.id
+       group by c.id, c.name
+       order by count(p.id) desc, c.name asc
+       limit $1::int`,
+      [limit],
+    );
     res.json({ ok: true, items: rows });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) });
@@ -495,6 +517,11 @@ app.get("/api/products/:id/image", async (req, res) => {
     return;
   }
 
+  const wRaw = req.query.w;
+  const wParsed = wRaw != null ? Number.parseInt(String(wRaw), 10) : 0;
+  const targetWidth =
+    Number.isFinite(wParsed) && wParsed > 0 ? Math.min(800, Math.max(64, wParsed)) : 0;
+
   try {
     const { rows } = await pool.query(`select image_data, image_mime from products where id = $1::uuid`, [id]);
     const row = rows[0];
@@ -502,8 +529,25 @@ app.get("/api/products/:id/image", async (req, res) => {
       res.status(404).end();
       return;
     }
+
+    if (targetWidth > 0) {
+      try {
+        const out = await sharp(row.image_data, { failOn: "none" })
+          .rotate()
+          .resize({ width: targetWidth, withoutEnlargement: true })
+          .jpeg({ quality: 82 })
+          .toBuffer();
+        res.setHeader("Content-Type", "image/jpeg");
+        res.setHeader("Cache-Control", "public, max-age=604800");
+        res.end(out);
+        return;
+      } catch {
+        // fallback: отдаём оригинал (редкие форматы / повреждённые файлы)
+      }
+    }
+
     res.setHeader("Content-Type", row.image_mime || "application/octet-stream");
-    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.setHeader("Cache-Control", "public, max-age=86400");
     res.end(row.image_data);
   } catch {
     res.status(500).end();
