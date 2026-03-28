@@ -86,6 +86,9 @@ export default function Header({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mobileMenuOpen]);
 
+  const menuIconTransition =
+    "opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
+
   return (
     <header
       className="fixed top-0 w-full flex justify-between items-center px-6 lg:px-8 py-4 min-h-[80px] max-w-full bg-[#f9faf6]/93 backdrop-blur-sm text-[#1f642e] tracking-tight shadow-sm shadow-[#1f642e]/5 z-50"
@@ -148,39 +151,40 @@ export default function Header({
             type="button"
             aria-label={mobileMenuOpen ? "Закрыть меню" : "Меню"}
             aria-expanded={mobileMenuOpen}
-            className="h-12 w-12 inline-flex items-center justify-center hover:bg-[#f3f4f0] transition-colors rounded-xl"
+            className="h-12 w-12 inline-flex items-center justify-center bg-transparent hover:bg-[#1f642e]/12 active:bg-[#1f642e]/18 transition-colors rounded-xl appearance-none"
             onClick={() => setMobileMenuOpen((v) => !v)}
           >
             <svg className="h-6 w-6 overflow-visible text-[#1f642e]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <g
-                  style={{
-                    transformOrigin: "12px 12px",
-                    transformBox: "view-box",
-                    transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-                    transform: mobileMenuOpen ? "translateY(5px) rotate(45deg)" : "translateY(0) rotate(0deg)",
-                  }}
-                >
-                  <line x1="4" y1="7" x2="20" y2="7" />
-                </g>
-                <g
-                  style={{
-                    transition: "opacity 0.2s ease-out",
-                    opacity: mobileMenuOpen ? 0 : 1,
-                  }}
-                >
-                  <line x1="4" y1="12" x2="20" y2="12" />
-                </g>
-                <g
-                  style={{
-                    transformOrigin: "12px 12px",
-                    transformBox: "view-box",
-                    transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-                    transform: mobileMenuOpen ? "translateY(-5px) rotate(-45deg)" : "translateY(0) rotate(0deg)",
-                  }}
-                >
-                  <line x1="4" y1="17" x2="20" y2="17" />
-                </g>
+              <g
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={{
+                  opacity: mobileMenuOpen ? 0 : 1,
+                  transform: mobileMenuOpen ? "scale(0.45) rotate(90deg)" : "scale(1) rotate(0deg)",
+                  transformOrigin: "12px 12px",
+                  transformBox: "view-box",
+                  transition: menuIconTransition,
+                }}
+              >
+                <line x1="4" y1="7" x2="20" y2="7" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="17" x2="20" y2="17" />
+              </g>
+              <g
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={{
+                  opacity: mobileMenuOpen ? 1 : 0,
+                  transform: mobileMenuOpen ? "scale(1) rotate(0deg)" : "scale(0.45) rotate(-90deg)",
+                  transformOrigin: "12px 12px",
+                  transformBox: "view-box",
+                  transition: menuIconTransition,
+                }}
+              >
+                <line x1="5" y1="5" x2="19" y2="19" />
+                <line x1="19" y1="5" x2="5" y2="19" />
               </g>
             </svg>
           </button>

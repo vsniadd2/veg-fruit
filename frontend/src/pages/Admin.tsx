@@ -1412,7 +1412,7 @@ export default function Admin() {
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
           <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
             <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
-            <span className="text-xs text-[#707a6c]">Версия 28.03.2026-v3</span>
+            <span className="text-xs text-[#707a6c]">Версия 29.03.2026-v1</span>
           </div>
           <div className="flex gap-6">
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
