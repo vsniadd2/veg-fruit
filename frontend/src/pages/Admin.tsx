@@ -14,6 +14,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const ACTIVE_TAB_KEY = "gh_admin_active_tab_v1";
 const CATALOG_CATEGORY_ID_KEY = "gh_admin_catalog_category_id_v1";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const DASHBOARD_PRODUCTS_PAGE_SIZE = 10;
+const CATALOG_TAB_PAGE_SIZE = 10;
 
 type AdminTab = "dashboard" | "homeCards" | "catalog" | "orders" | "suppliers" | "reports";
 
@@ -646,12 +648,21 @@ export default function Admin() {
   }, []);
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [recentProducts, setRecentProducts] = useState<Product[]>([]);
+  const [dashboardProducts, setDashboardProducts] = useState<Product[]>([]);
+  const [dashboardProductsTotal, setDashboardProductsTotal] = useState(0);
+  const [dashboardProductsPage, setDashboardProductsPage] = useState(1);
+  const [dashboardProductsSearch, setDashboardProductsSearch] = useState("");
+  const [debouncedDashboardSearch, setDebouncedDashboardSearch] = useState("");
+  const [isLoadingDashboardProducts, setIsLoadingDashboardProducts] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogProductsTotal, setCatalogProductsTotal] = useState(0);
+  const [catalogProductsPage, setCatalogProductsPage] = useState(1);
   const [catalogCategoryIds, setCatalogCategoryIds] = useState<string[]>(() => getSavedCatalogCategoryIds());
   const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [draftCategoryIds, setDraftCategoryIds] = useState<string[]>(() => getSavedCatalogCategoryIds());
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [catalogProductSearchQuery, setCatalogProductSearchQuery] = useState("");
+  const [debouncedCatalogProductSearch, setDebouncedCatalogProductSearch] = useState("");
   const [highlightProductId, setHighlightProductId] = useState<string | null>(null);
   const [highlightCategoryId, setHighlightCategoryId] = useState<string | null>(null);
 
@@ -721,6 +732,15 @@ export default function Admin() {
     setSavedCatalogCategoryIds(catalogCategoryIds);
     setDraftCategoryIds(catalogCategoryIds);
   }, [catalogCategoryIds]);
+
+  useEffect(() => {
+    if (catalogProductSearchQuery === "") {
+      setDebouncedCatalogProductSearch("");
+      return;
+    }
+    const t = window.setTimeout(() => setDebouncedCatalogProductSearch(catalogProductSearchQuery), 300);
+    return () => window.clearTimeout(t);
+  }, [catalogProductSearchQuery]);
 
   const doLogout = () => {
     setToken(ACCESS_TOKEN_KEY, null);
@@ -844,16 +864,65 @@ export default function Admin() {
       await loadCategories();
       const nextIds = catalogCategoryIds.filter((x) => x !== id);
       if (nextIds.length !== catalogCategoryIds.length) setCatalogCategoryIds(nextIds);
-      await loadCatalogProducts(nextIds);
+      await loadCatalogProducts(nextIds, 1, debouncedCatalogProductSearch);
     } finally {
       setIsDeletingCategory(false);
     }
   };
 
-  const loadRecentProducts = async () => {
-    const data = await adminFetchJson<{ items: Product[] }>("/api/products?pageSize=10");
-    setRecentProducts(data.items ?? []);
+  const loadDashboardProducts = async (page: number, qRaw: string) => {
+    const trimmed = qRaw.trim();
+    setIsLoadingDashboardProducts(true);
+    try {
+      let targetPage = Math.max(1, page);
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const params = new URLSearchParams();
+        params.set("page", String(targetPage));
+        params.set("pageSize", String(DASHBOARD_PRODUCTS_PAGE_SIZE));
+        if (trimmed) params.set("q", trimmed);
+        const data = await adminFetchJson<{ items?: Product[]; total?: number }>(`/api/products?${params.toString()}`);
+        const items = data.items ?? [];
+        const total = typeof data.total === "number" ? data.total : 0;
+        const pageCount = Math.max(1, Math.ceil(total / DASHBOARD_PRODUCTS_PAGE_SIZE));
+        if (targetPage > pageCount) {
+          targetPage = pageCount;
+          continue;
+        }
+        if (items.length === 0 && targetPage > 1 && total > 0) {
+          targetPage -= 1;
+          continue;
+        }
+        setDashboardProducts(items);
+        setDashboardProductsTotal(total);
+        setDashboardProductsPage(targetPage);
+        return;
+      }
+      setDashboardProducts([]);
+      setDashboardProductsTotal(0);
+      setDashboardProductsPage(1);
+    } catch {
+      setDashboardProducts([]);
+      setDashboardProductsTotal(0);
+    } finally {
+      setIsLoadingDashboardProducts(false);
+    }
   };
+
+  useEffect(() => {
+    if (dashboardProductsSearch === "") {
+      setDebouncedDashboardSearch("");
+      return;
+    }
+    const t = window.setTimeout(() => setDebouncedDashboardSearch(dashboardProductsSearch), 300);
+    return () => window.clearTimeout(t);
+  }, [dashboardProductsSearch]);
+
+  useEffect(() => {
+    if (!isAuthed) return;
+    if (isCheckingAuth) return;
+    void loadDashboardProducts(1, debouncedDashboardSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- перезагрузка списка только при смене поиска/авторизации
+  }, [isAuthed, isCheckingAuth, debouncedDashboardSearch]);
 
   const loadHomeCards = async () => {
     setIsLoadingHomeCards(true);
@@ -878,7 +947,7 @@ export default function Admin() {
           categoryId: card.categoryId,
         }),
       });
-      await loadHomeCards();
+      await loadHomeCards().catch(() => {});
     } finally {
       setSavingHomeCardSlot(null);
     }
@@ -905,13 +974,45 @@ export default function Admin() {
     }
   };
 
-  const loadCatalogProducts = async (categoryIds?: string[]) => {
+  const loadCatalogProducts = async (categoryIds: string[] | undefined, page: number, qRaw: string) => {
+    const ids = categoryIds ?? [];
+    const trimmed = qRaw.trim();
     setIsLoadingCatalog(true);
     try {
-      const ids = categoryIds ?? [];
-      const q = ids.length ? `?pageSize=50&categoryId=${encodeURIComponent(ids.join(","))}` : "?pageSize=50";
-      const data = await adminFetchJson<{ items: Product[] }>(`/api/products${q}`);
-      setCatalogProducts(data.items ?? []);
+      let targetPage = Math.max(1, page);
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const params = new URLSearchParams();
+        params.set("page", String(targetPage));
+        params.set("pageSize", String(CATALOG_TAB_PAGE_SIZE));
+        if (ids.length === 1) {
+          params.set("categoryId", ids[0]);
+        } else if (ids.length > 1) {
+          params.set("categoryId", ids.join(","));
+        }
+        if (trimmed) params.set("q", trimmed);
+        const data = await adminFetchJson<{ items?: Product[]; total?: number }>(`/api/products?${params.toString()}`);
+        const items = data.items ?? [];
+        const total = typeof data.total === "number" ? data.total : 0;
+        const pageCount = Math.max(1, Math.ceil(total / CATALOG_TAB_PAGE_SIZE));
+        if (targetPage > pageCount) {
+          targetPage = pageCount;
+          continue;
+        }
+        if (items.length === 0 && targetPage > 1 && total > 0) {
+          targetPage -= 1;
+          continue;
+        }
+        setCatalogProducts(items);
+        setCatalogProductsTotal(total);
+        setCatalogProductsPage(targetPage);
+        return;
+      }
+      setCatalogProducts([]);
+      setCatalogProductsTotal(0);
+      setCatalogProductsPage(1);
+    } catch {
+      setCatalogProducts([]);
+      setCatalogProductsTotal(0);
     } finally {
       setIsLoadingCatalog(false);
     }
@@ -974,8 +1075,8 @@ export default function Admin() {
         body: JSON.stringify(body),
       });
       setEditingProduct(null);
-      await loadRecentProducts();
-      await loadCatalogProducts(catalogCategoryIds);
+      await loadDashboardProducts(dashboardProductsPage, debouncedDashboardSearch);
+      await loadCatalogProducts(catalogCategoryIds, catalogProductsPage, debouncedCatalogProductSearch);
     } catch {
       setError("Не удалось сохранить товар.");
     } finally {
@@ -992,8 +1093,8 @@ export default function Admin() {
         method: "DELETE",
       });
       setDeletingProductId(null);
-      await loadRecentProducts();
-      await loadCatalogProducts(catalogCategoryIds);
+      await loadDashboardProducts(dashboardProductsPage, debouncedDashboardSearch);
+      await loadCatalogProducts(catalogCategoryIds, catalogProductsPage, debouncedCatalogProductSearch);
     } catch {
       setError("Не удалось удалить товар.");
     } finally {
@@ -1033,7 +1134,6 @@ export default function Admin() {
     if (!isAuthed) return;
     if (isCheckingAuth) return;
     void loadCategories().catch(() => {});
-    void loadRecentProducts().catch(() => {});
     void loadHomeCards().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, isCheckingAuth]);
@@ -1042,9 +1142,9 @@ export default function Admin() {
     if (!isAuthed) return;
     if (isCheckingAuth) return;
     if (activeTab !== "catalog") return;
-    void loadCatalogProducts(catalogCategoryIds).catch(() => {});
+    void loadCatalogProducts(catalogCategoryIds, 1, debouncedCatalogProductSearch).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, catalogCategoryIds, isAuthed]);
+  }, [activeTab, catalogCategoryIds, debouncedCatalogProductSearch, isAuthed, isCheckingAuth]);
 
   useEffect(() => {
     if (!isAuthed) return;
@@ -1163,6 +1263,9 @@ export default function Admin() {
       cancelled = true;
     };
   }, []);
+
+  const dashboardPageCount = Math.max(1, Math.ceil(dashboardProductsTotal / DASHBOARD_PRODUCTS_PAGE_SIZE));
+  const catalogPageCount = Math.max(1, Math.ceil(catalogProductsTotal / CATALOG_TAB_PAGE_SIZE));
 
   if (!isAuthed) {
     const verdantMeshBg: React.CSSProperties = {
@@ -1412,7 +1515,7 @@ export default function Admin() {
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
           <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
             <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
-            <span className="text-xs text-[#707a6c]">Версия 29.03.2026-v1</span>
+            <span className="text-xs text-[#707a6c]">Версия 29.03.2026-v3</span>
           </div>
           <div className="flex gap-6">
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
@@ -1949,7 +2052,7 @@ export default function Admin() {
                           setNewProductWeightUnit("g");
                           setNewProductImageFile(null);
                           setNewProductSeasonal(false);
-                          await loadRecentProducts();
+                          await loadDashboardProducts(1, debouncedDashboardSearch);
                         } catch (err) {
                           setError(getUploadErrorMessage(err, "Не удалось сохранить товар. Проверьте сервер и попробуйте ещё раз."));
                         } finally {
@@ -2080,13 +2183,27 @@ export default function Admin() {
                     </form>
                   </section>
 
-                  {/* Recent Products Table */}
                   <section className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold">Недавно добавленные</h3>
-                      <button className="text-primary text-sm font-semibold hover:underline" type="button">
-                        Показать все
-                      </button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="text-xl font-bold">Товары</h3>
+                        <p className="text-slate-500 text-sm">
+                          {isLoadingDashboardProducts
+                            ? "Загрузка..."
+                            : debouncedDashboardSearch.trim()
+                              ? `Найдено: ${dashboardProductsTotal} (стр. ${dashboardProductsPage} из ${dashboardPageCount})`
+                              : `Всего в базе: ${dashboardProductsTotal} · стр. ${dashboardProductsPage} из ${dashboardPageCount}`}
+                        </p>
+                      </div>
+                      <input
+                        className="w-full sm:max-w-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:text-slate-100"
+                        type="search"
+                        autoComplete="off"
+                        placeholder="Поиск: название, страна, категория…"
+                        aria-label="Поиск товаров"
+                        value={dashboardProductsSearch}
+                        onChange={(e) => setDashboardProductsSearch(e.target.value)}
+                      />
                     </div>
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                       <div className="overflow-x-auto">
@@ -2114,8 +2231,8 @@ export default function Admin() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {recentProducts.length ? (
-                              recentProducts.map((p) => (
+                            {dashboardProducts.length ? (
+                              dashboardProducts.map((p) => (
                                 <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                   <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
@@ -2191,13 +2308,55 @@ export default function Admin() {
                             ) : (
                               <tr>
                                 <td className="px-6 py-8 text-sm text-slate-500" colSpan={6}>
-                                  Пока нет добавленных товаров.
+                                  {dashboardProductsTotal === 0 && !debouncedDashboardSearch.trim()
+                                    ? "Пока нет добавленных товаров."
+                                    : "Ничего не найдено по запросу. Измените поиск или сбросьте поле."}
                                 </td>
                               </tr>
                             )}
                           </tbody>
                         </table>
                       </div>
+                      {dashboardProductsTotal > 0 ? (
+                        <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-4">
+                          <button
+                            className="h-10 min-w-[2.5rem] shrink-0 rounded-full border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            disabled={dashboardProductsPage <= 1 || isLoadingDashboardProducts}
+                            onClick={() => void loadDashboardProducts(dashboardProductsPage - 1, debouncedDashboardSearch)}
+                            type="button"
+                          >
+                            ←
+                          </button>
+                          {Array.from({ length: dashboardPageCount }).map((_, i) => {
+                            const n = i + 1;
+                            const active = n === dashboardProductsPage;
+                            return (
+                              <button
+                                key={n}
+                                className={[
+                                  "h-10 min-w-[2.5rem] shrink-0 rounded-full px-3 text-sm font-bold transition-colors",
+                                  active
+                                    ? "bg-primary text-white"
+                                    : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700",
+                                ].join(" ")}
+                                disabled={isLoadingDashboardProducts}
+                                onClick={() => void loadDashboardProducts(n, debouncedDashboardSearch)}
+                                type="button"
+                              >
+                                {n}
+                              </button>
+                            );
+                          })}
+                          <button
+                            className="h-10 min-w-[2.5rem] shrink-0 rounded-full border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            disabled={dashboardProductsPage >= dashboardPageCount || isLoadingDashboardProducts}
+                            onClick={() => void loadDashboardProducts(dashboardProductsPage + 1, debouncedDashboardSearch)}
+                            type="button"
+                          >
+                            →
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </section>
 
@@ -2325,7 +2484,7 @@ export default function Admin() {
                         <div className="p-6 border-b border-slate-100 dark:border-slate-800">
                           <h4 className="text-lg font-bold">Удалить товар?</h4>
                           <p className="text-sm text-slate-500">
-                            {recentProducts.find((x) => x.id === deletingProductId)?.name ?? "Товар"} будет удалён без
+                            {dashboardProducts.find((x) => x.id === deletingProductId)?.name ?? "Товар"} будет удалён без
                             восстановления.
                           </p>
                         </div>
@@ -2375,13 +2534,17 @@ export default function Admin() {
                           setError(null);
                           if (!card.title.trim() || !card.subtitle.trim() || !card.categoryId) {
                             setError(`Заполните все поля для карточки #${card.slot}.`);
+                            setHomeCardSaveNotice({
+                              kind: "error",
+                              text: `Заполните заголовок, второй текст и выберите категорию для карточки #${card.slot}.`,
+                            });
                             return;
                           }
                           try {
                             await saveHomeCard(card);
                             setHomeCardSaveNotice({
                               kind: "success",
-                              text: `Карточка #${card.slot} успешно сохранена.`,
+                              text: `Карточка #${card.slot} сохранена. Все данные успешно записаны на сервер.`,
                             });
                           } catch (err) {
                             const message = String(err);
@@ -2389,13 +2552,13 @@ export default function Admin() {
                               setError(`Категория карточки #${card.slot} не найдена.`);
                               setHomeCardSaveNotice({
                                 kind: "error",
-                                text: `Не удалось сохранить карточку #${card.slot}: категория не найдена.`,
+                                text: `Не удалось сохранить карточку #${card.slot}: категория не найдена. Выберите другую категорию.`,
                               });
                             } else {
                               setError(`Не удалось сохранить карточку #${card.slot}.`);
                               setHomeCardSaveNotice({
                                 kind: "error",
-                                text: `Не удалось сохранить карточку #${card.slot}. Проверьте поля и повторите.`,
+                                text: `Ошибка при сохранении карточки #${card.slot}. Проверьте соединение и поля, затем попробуйте снова.`,
                               });
                             }
                           }
@@ -2722,7 +2885,6 @@ export default function Admin() {
                                   setNewCategoryName("");
                                   setIsCreatingCategory(false);
                                   await loadCategories();
-                                  setCatalogCategoryIds([created.item.id]);
                                 } catch {
                                   setError("Не удалось создать категорию.");
                                 }
@@ -2842,20 +3004,41 @@ export default function Admin() {
                   ) : null}
 
                   <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
-                      <div>
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="min-w-0">
                         <h3 className="text-xl font-bold">Товары</h3>
                         <p className="text-slate-500 text-sm">
-                          {isLoadingCatalog ? "Загрузка..." : `Найдено: ${catalogProducts.length}`}
+                          {isLoadingCatalog
+                            ? "Загрузка..."
+                            : debouncedCatalogProductSearch.trim()
+                              ? `Найдено: ${catalogProductsTotal} · стр. ${catalogProductsPage} из ${catalogPageCount}`
+                              : `Всего: ${catalogProductsTotal} · стр. ${catalogProductsPage} из ${catalogPageCount}`}
                         </p>
                       </div>
-                      <button
-                        className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors"
-                        onClick={() => void loadCatalogProducts(catalogCategoryIds)}
-                        type="button"
-                      >
-                        Обновить
-                      </button>
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[min(100%,20rem)] sm:flex-row sm:items-center">
+                        <input
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                          type="search"
+                          autoComplete="off"
+                          placeholder="Поиск: название, категория, страна, цена…"
+                          aria-label="Поиск товаров в каталоге"
+                          value={catalogProductSearchQuery}
+                          onChange={(e) => setCatalogProductSearchQuery(e.target.value)}
+                        />
+                        <button
+                          className="shrink-0 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors dark:border-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
+                          onClick={() =>
+                            void loadCatalogProducts(
+                              catalogCategoryIds,
+                              catalogProductsPage,
+                              debouncedCatalogProductSearch,
+                            )
+                          }
+                          type="button"
+                        >
+                          Обновить
+                        </button>
+                      </div>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
@@ -2918,13 +3101,67 @@ export default function Admin() {
                           ) : (
                             <tr>
                               <td className="px-6 py-8 text-sm text-slate-500" colSpan={5}>
-                                Товары не найдены.
+                                {catalogProductsTotal === 0 && !debouncedCatalogProductSearch.trim()
+                                  ? "Товары не найдены."
+                                  : "Нет товаров по текущему поиску или фильтру. Измените запрос или сбросьте поиск."}
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
+                    {catalogProductsTotal > 0 ? (
+                      <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-4">
+                        <button
+                          className="h-10 min-w-[2.5rem] shrink-0 rounded-full border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          disabled={catalogProductsPage <= 1 || isLoadingCatalog}
+                          onClick={() =>
+                            void loadCatalogProducts(
+                              catalogCategoryIds,
+                              catalogProductsPage - 1,
+                              debouncedCatalogProductSearch,
+                            )
+                          }
+                          type="button"
+                        >
+                          ←
+                        </button>
+                        {Array.from({ length: catalogPageCount }).map((_, i) => {
+                          const n = i + 1;
+                          const active = n === catalogProductsPage;
+                          return (
+                            <button
+                              key={n}
+                              className={[
+                                "h-10 min-w-[2.5rem] shrink-0 rounded-full px-3 text-sm font-bold transition-colors",
+                                active
+                                  ? "bg-primary text-white"
+                                  : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700",
+                              ].join(" ")}
+                              disabled={isLoadingCatalog}
+                              onClick={() => void loadCatalogProducts(catalogCategoryIds, n, debouncedCatalogProductSearch)}
+                              type="button"
+                            >
+                              {n}
+                            </button>
+                          );
+                        })}
+                        <button
+                          className="h-10 min-w-[2.5rem] shrink-0 rounded-full border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          disabled={catalogProductsPage >= catalogPageCount || isLoadingCatalog}
+                          onClick={() =>
+                            void loadCatalogProducts(
+                              catalogCategoryIds,
+                              catalogProductsPage + 1,
+                              debouncedCatalogProductSearch,
+                            )
+                          }
+                          type="button"
+                        >
+                          →
+                        </button>
+                      </div>
+                    ) : null}
                   </section>
                 </div>
               ) : activeTab === "suppliers" ? (

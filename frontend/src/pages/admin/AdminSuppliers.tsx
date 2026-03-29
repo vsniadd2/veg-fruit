@@ -42,22 +42,16 @@ const FREQ_LABEL: Record<ScheduleFrequency, string> = {
   by_agreement: "По договорённости",
 };
 
-const selectChevronClass =
-  "appearance-none w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 pl-2 pr-9 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none";
+const selectBaseClass =
+  "w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none";
 
+/** Одна системная стрелка у select (без appearance-none + дублирующей иконки). */
 function SelectWithChevron(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const { className, children, ...rest } = props;
   return (
-    <div className="relative inline-flex min-w-0 items-stretch">
-      <select {...rest} className={[selectChevronClass, className].filter(Boolean).join(" ")}>
-        {children}
-      </select>
-      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" aria-hidden>
-          <path d="m6 8 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-        </svg>
-      </span>
-    </div>
+    <select {...rest} className={[selectBaseClass, className].filter(Boolean).join(" ")}>
+      {children}
+    </select>
   );
 }
 

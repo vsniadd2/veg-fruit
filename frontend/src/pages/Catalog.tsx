@@ -49,7 +49,7 @@ export default function Catalog() {
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<"default" | "name" | "season">("default");
+  const [sort, setSort] = useState<"name" | "price" | "season">("name");
   const [category, setCategory] = useState<Product["category"]>("vegetables");
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -57,16 +57,16 @@ export default function Catalog() {
   const sortOptions = useMemo(
     () =>
       [
-        { value: "default", label: "По свежести" },
         { value: "name", label: "По названию" },
+        { value: "price", label: "По цене" },
         { value: "season", label: "По сезону" },
       ] as const,
     [],
   );
-  const sortLabel = useMemo(() => sortOptions.find((o) => o.value === sort)?.label ?? "По свежести", [sort, sortOptions]);
+  const sortLabel = useMemo(() => sortOptions.find((o) => o.value === sort)?.label ?? "По названию", [sort, sortOptions]);
   const resetFilters = () => {
     setQuery("");
-    setSort("default");
+    setSort("name");
     setCategory(categories[0]?.id ?? "vegetables");
     setPage(1);
     setSortMenuOpen(false);
@@ -148,8 +148,11 @@ export default function Catalog() {
   useEffect(() => {
     const s = searchParams.get("sort");
     if (!s) return;
-    if (s === "default" || s === "name" || s === "season") {
+    if (s === "name" || s === "price" || s === "season") {
       setSort(s);
+      setPage(1);
+    } else if (s === "default") {
+      setSort("name");
       setPage(1);
     }
   }, [searchParams]);
@@ -283,6 +286,12 @@ export default function Catalog() {
 
     if (sort === "name") {
       return [...base].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    }
+
+    if (sort === "price") {
+      const rank = (p: Product) =>
+        p.price != null && Number.isFinite(p.price) ? p.price : Number.POSITIVE_INFINITY;
+      return [...base].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "ru"));
     }
 
     if (sort === "season") {
@@ -482,6 +491,7 @@ export default function Catalog() {
                     ) : null}
                   </div>
                 </div>
+
                 <button
                   className="px-5 py-3 rounded-full bg-white border border-[#d4d7d1] text-[#5c6658] text-sm font-semibold hover:border-[#1f642e]/40 hover:text-[#1f642e] transition-colors"
                   onClick={resetFilters}

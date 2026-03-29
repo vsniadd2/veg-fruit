@@ -54,18 +54,21 @@ export default function SiteFooter() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
           <div>
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-forest-green rounded-md flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                  />
+            <div className="flex min-w-0 items-center gap-2.5 mb-4">
+              <span
+                className="pointer-events-none flex shrink-0 items-center justify-center rounded-xl bg-[#0d601b] p-1.5 text-white shadow-sm shadow-[#0d601b]/25"
+                aria-hidden="true"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 21v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12 14c-5 0-8-3.5-8-8 4.5 0 8 3 8 8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                  <path d="M12 14c5 0 8-3.5 8-8-4.5 0-8 3-8 8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                  <path d="M7 21h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              </div>
-              <span className="text-xl font-bold text-forest-green">Миксголдфрукт</span>
+              </span>
+              <Link className="truncate text-xl font-black text-[#1f642e]" to="/">
+                Миксголдфрукт
+              </Link>
             </div>
             <div className="flex space-x-4">
               <a className="text-gray-400 hover:text-forest-green" href="#">
@@ -153,7 +156,7 @@ export default function SiteFooter() {
         <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
           <p>© 2026 Миксголдфрукт. Все права защищены.</p>
           <span className="text-gray-300 hidden md:inline">•</span>
-          <p className="text-gray-400">Версия 29.03.2026-v1</p>
+          <p className="text-gray-400">Версия 29.03.2026-v3</p>
           <div className="flex space-x-6 mt-2 md:mt-0 justify-center">
             <Link className="hover:text-forest-green" to="/privacy">
               Политика конфиденциальности

@@ -453,7 +453,9 @@ app.get("/api/products", async (req, res) => {
   const params = [];
   if (q) {
     params.push(`%${q}%`);
-    where.push(`(p.name ilike $${params.length} or p.country ilike $${params.length})`);
+    where.push(
+      `(p.name ilike $${params.length} or p.country ilike $${params.length} or c.name ilike $${params.length} or coalesce(p.price::text, '') ilike $${params.length})`,
+    );
   }
   if (categoryIds.length === 1) {
     params.push(categoryIds[0]);
@@ -463,15 +465,15 @@ app.get("/api/products", async (req, res) => {
     where.push(`p.category_id = any($${params.length}::uuid[])`);
   }
   const whereSql = where.length ? `where ${where.join(" and ")}` : "";
+  const fromSql = `from products p left join categories c on c.id = p.category_id`;
 
   try {
-    const count = await pool.query(`select count(*)::int as count from products p ${whereSql}`, params);
+    const count = await pool.query(`select count(*)::int as count ${fromSql} ${whereSql}`, params);
     const total = count.rows[0]?.count ?? 0;
 
     const items = await pool.query(
       `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, p.in_stock, p.weight_value, p.weight_unit, c.name as category_name
-       from products p
-       left join categories c on c.id = p.category_id
+       ${fromSql}
        ${whereSql}
        order by p.created_at desc
        limit $${params.length + 1}
