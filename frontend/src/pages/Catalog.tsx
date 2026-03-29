@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import SiteFooter from "../components/SiteFooter";
@@ -73,6 +73,7 @@ export default function Catalog() {
     setCategory(categories[0]?.id ?? "vegetables");
     setPage(1);
     setSortMenuOpen(false);
+    setCategoryMenuOpen(false);
     setSearchParams((sp) => {
       const next = new URLSearchParams(sp);
       next.delete("seasonal");
@@ -82,6 +83,9 @@ export default function Catalog() {
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement | null>(null);
   const sortButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const categoryMenuRef = useRef<HTMLDivElement | null>(null);
+  const categoryButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +132,31 @@ export default function Catalog() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [sortMenuOpen]);
+
+  useEffect(() => {
+    if (!categoryMenuOpen) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (categoryMenuRef.current?.contains(target)) return;
+      if (categoryButtonRef.current?.contains(target)) return;
+      setCategoryMenuOpen(false);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setCategoryMenuOpen(false);
+      categoryButtonRef.current?.focus();
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [categoryMenuOpen]);
 
   useEffect(() => {
     if (!categories.length) return;
@@ -283,6 +312,12 @@ export default function Catalog() {
     return counts;
   }, [products, onlySeasonal]);
 
+  const categoryLabel = useMemo(() => {
+    if (onlySeasonal) return "Все сезонные";
+    const c = categoriesToShow.find((x) => x.id === category);
+    return c?.label ?? "Категория";
+  }, [onlySeasonal, category, categoriesToShow]);
+
   const normalizedQuery = query.trim().toLowerCase();
   const filteredProducts = useMemo(() => {
     const categoryBase = onlySeasonal
@@ -354,6 +389,17 @@ export default function Catalog() {
     return `${p.price.toFixed(2)}`;
   };
 
+  const selectCatalogCategory = useCallback((id: string) => {
+    setSearchParams((sp) => {
+      const next = new URLSearchParams(sp);
+      next.delete("seasonal");
+      return next;
+    });
+    setCategory(id);
+    setPage(1);
+    setQuery("");
+  }, [setSearchParams]);
+
   return (
     <div className="bg-green-50 text-[#1a1c1a] overflow-x-hidden" style={organicBgStyle}>
       <Header
@@ -395,16 +441,7 @@ export default function Catalog() {
                           ? "text-[#1f642e] font-bold bg-white rounded-r-full shadow-sm"
                           : "text-stone-500 hover:translate-x-1 hover:text-[#1f642e]",
                       ].join(" ")}
-                      onClick={() => {
-                        setSearchParams((sp) => {
-                          const next = new URLSearchParams(sp);
-                          next.delete("seasonal");
-                          return next;
-                        });
-                        setCategory(c.id);
-                        setPage(1);
-                        setQuery("");
-                      }}
+                      onClick={() => selectCatalogCategory(c.id)}
                       type="button"
                     >
                       <span className="flex-1">{c.label}</span>
@@ -424,16 +461,17 @@ export default function Catalog() {
           </aside>
 
           {/* Main Catalog Content */}
-          <section className="flex-1 pb-20">
+          <section className="min-w-0 flex-1 pb-20">
             {/* Catalog Header: z-30 — выпадающая сортировка над сеткой (иначе карточки рисуются поверх) */}
-            <div className="relative z-30 flex flex-col md:flex-row md:justify-between md:items-end gap-6 mb-12">
+            <div className="relative z-30 mb-12 flex min-w-0 flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div>
                 <h1 className="text-5xl font-black text-[#1a1c1a] tracking-tighter mb-2">Качественные продукты</h1>
                 <p className="text-[#40493f] max-w-md">
                   {onlySeasonal ? (
                     <>
-                      Показаны все сезонные позиции из каталога. Чтобы смотреть категории по отдельности, выберите раздел слева или
-                      нажмите «Сбросить фильтры».
+                      Показаны все сезонные позиции из каталога. Чтобы смотреть категории по отдельности, выберите категорию{" "}
+                      <span className="lg:hidden">в фильтрах ниже</span>
+                      <span className="hidden lg:inline">слева в списке категорий</span> или нажмите «Сбросить фильтры».
                     </>
                   ) : (
                     <>
@@ -443,41 +481,151 @@ export default function Catalog() {
                   )}
                 </p>
               </div>
-              <div className="flex gap-4 items-center flex-wrap">
-                <div className="flex h-12 items-center gap-2 rounded-full border border-[#1f642e]/10 bg-[#f9faf6]/70 px-5 backdrop-blur-sm text-sm font-semibold sm:px-6">
-                  <span className="text-[#707a6e]">Сортировка:</span>
-                  <div className="relative z-50">
-                    <button
-                      ref={sortButtonRef}
-                      className="inline-flex items-center gap-2 bg-transparent text-[#1a1c1a] font-semibold pl-1 -ml-1 pr-1 rounded-full focus:outline-none focus:ring-2 focus:ring-[#1f642e]/20"
-                      type="button"
-                      aria-haspopup="menu"
-                      aria-expanded={sortMenuOpen}
-                      onClick={() => setSortMenuOpen((v) => !v)}
-                    >
-                      <span className="whitespace-nowrap">{sortLabel}</span>
-                      <svg
-                        className={[
-                          "h-4 w-4 text-[#707a6e] transition-transform duration-200",
-                          sortMenuOpen ? "rotate-180" : "rotate-0",
-                        ].join(" ")}
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
+              <div className="flex w-full min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-4">
+                <div className="w-full min-w-0 md:w-auto md:max-w-[min(22rem,calc(100vw-4rem))] lg:hidden">
+                  <div className="relative w-full min-w-0">
+                    <div className="flex h-12 w-full min-w-0 items-center gap-2 rounded-full border border-[#1f642e]/10 bg-[#f9faf6]/70 px-4 backdrop-blur-sm text-sm font-semibold sm:px-6">
+                      <span className="shrink-0 text-[#707a6e]">Категория:</span>
+                      <div className="relative min-w-0 flex-1">
+                        <button
+                          ref={categoryButtonRef}
+                          className="inline-flex min-w-0 max-w-full w-full items-center justify-between gap-2 rounded-full bg-transparent py-1 pl-1 pr-1 text-left text-[#1a1c1a] font-semibold focus:outline-none focus:ring-2 focus:ring-[#1f642e]/20"
+                          type="button"
+                          aria-haspopup="menu"
+                          aria-expanded={categoryMenuOpen}
+                          aria-label={`Категория: ${categoryLabel}`}
+                          onClick={() => {
+                            setCategoryMenuOpen((v) => !v);
+                            setSortMenuOpen(false);
+                          }}
+                        >
+                          <span className="min-w-0 truncate">{categoryLabel}</span>
+                          <svg
+                            className={[
+                              "h-4 w-4 shrink-0 text-[#707a6e] transition-transform duration-200",
+                              categoryMenuOpen ? "rotate-180" : "rotate-0",
+                            ].join(" ")}
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.24 4.5a.75.75 0 0 1-1.08 0l-4.24-4.5a.75.75 0 0 1 .02-1.06Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {categoryMenuOpen ? (
+                      <div
+                        ref={categoryMenuRef}
+                        role="menu"
+                        aria-label="Категории"
+                        className="z-[100] mt-2 max-h-[min(60vh,22rem)] w-full min-w-0 overflow-auto rounded-2xl border border-[#1f642e]/10 bg-white shadow-xl shadow-[#1f642e]/10 backdrop-blur-md max-md:relative md:absolute md:right-0 md:top-[calc(100%+0.5rem)] md:mt-0 md:w-[min(20rem,calc(100vw-2rem))]"
                       >
-                        <path
-                          fillRule="evenodd"
-                          d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.24 4.5a.75.75 0 0 1-1.08 0l-4.24-4.5a.75.75 0 0 1 .02-1.06Z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
+                        <div className="p-2">
+                          {onlySeasonal ? (
+                            <div className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-[#707a6e]">
+                              Сейчас: все сезонные
+                            </div>
+                          ) : null}
+                          {categoriesToShow.map((c) => {
+                            const active = !onlySeasonal && c.id === category;
+                            const count = categoryCounts[c.id] ?? 0;
+                            return (
+                              <button
+                                key={c.id}
+                                role="menuitemradio"
+                                aria-checked={active}
+                                type="button"
+                                className={[
+                                  "w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+                                  active
+                                    ? "bg-[#1f642e] text-white shadow-sm shadow-[#1f642e]/20"
+                                    : "text-[#1a1c1a] hover:bg-[#e7e9e5]",
+                                ].join(" ")}
+                                onClick={() => {
+                                  selectCatalogCategory(c.id);
+                                  setCategoryMenuOpen(false);
+                                }}
+                              >
+                                <span className="flex items-center justify-between gap-3">
+                                  <span className="min-w-0 truncate">{c.label}</span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    <span
+                                      className={[
+                                        "tabular-nums text-xs font-bold",
+                                        active ? "text-white/85" : "text-[#707a6e]",
+                                      ].join(" ")}
+                                    >
+                                      {count}
+                                    </span>
+                                    {active ? (
+                                      <svg className="h-4 w-4 opacity-90" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42-.002L3.29 9.25a1 1 0 1 1 1.42-1.4l3.04 3.082 6.54-6.586a1 1 0 0 1 1.414-.006Z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    ) : (
+                                      <span className="h-4 w-4" aria-hidden="true" />
+                                    )}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="w-full min-w-0 md:w-auto md:max-w-[min(22rem,calc(100vw-4rem))]">
+                  <div className="relative w-full min-w-0">
+                    <div className="flex h-12 w-full min-w-0 items-center gap-2 rounded-full border border-[#1f642e]/10 bg-[#f9faf6]/70 px-4 backdrop-blur-sm text-sm font-semibold sm:px-6">
+                      <span className="shrink-0 text-[#707a6e]">Сортировка:</span>
+                      <div className="relative min-w-0 flex-1">
+                        <button
+                          ref={sortButtonRef}
+                          className="inline-flex min-w-0 max-w-full w-full items-center justify-between gap-2 rounded-full bg-transparent py-1 pl-1 pr-1 text-left text-[#1a1c1a] font-semibold focus:outline-none focus:ring-2 focus:ring-[#1f642e]/20"
+                          type="button"
+                          aria-haspopup="menu"
+                          aria-expanded={sortMenuOpen}
+                          onClick={() => {
+                            setSortMenuOpen((v) => !v);
+                            setCategoryMenuOpen(false);
+                          }}
+                        >
+                          <span className="min-w-0 truncate">{sortLabel}</span>
+                          <svg
+                            className={[
+                              "h-4 w-4 shrink-0 text-[#707a6e] transition-transform duration-200",
+                              sortMenuOpen ? "rotate-180" : "rotate-0",
+                            ].join(" ")}
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.24 4.5a.75.75 0 0 1-1.08 0l-4.24-4.5a.75.75 0 0 1 .02-1.06Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
 
                     {sortMenuOpen ? (
                       <div
                         ref={sortMenuRef}
                         role="menu"
-                        className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] w-[min(16rem,calc(100vw-2.5rem))] max-h-[min(50vh,18rem)] overflow-auto rounded-2xl border border-[#1f642e]/10 bg-white/95 shadow-2xl shadow-[#1f642e]/10 backdrop-blur-md"
+                        className="z-[100] mt-2 max-h-[min(50vh,18rem)] w-full min-w-0 overflow-auto rounded-2xl border border-[#1f642e]/10 bg-white shadow-xl shadow-[#1f642e]/10 backdrop-blur-md max-md:relative md:absolute md:right-0 md:top-[calc(100%+0.5rem)] md:mt-0 md:w-[min(16rem,calc(100vw-2rem))]"
                       >
                         <div className="p-2">
                           {sortOptions.map((o) => {
@@ -525,7 +673,7 @@ export default function Catalog() {
                 </div>
 
                 <button
-                  className="px-5 py-3 rounded-full bg-white border border-[#d4d7d1] text-[#5c6658] text-sm font-semibold hover:border-[#1f642e]/40 hover:text-[#1f642e] transition-colors"
+                  className="h-12 w-full shrink-0 rounded-full border border-[#d4d7d1] bg-white px-5 py-3 text-sm font-semibold text-[#5c6658] transition-colors hover:border-[#1f642e]/40 hover:text-[#1f642e] md:h-auto md:w-auto"
                   onClick={resetFilters}
                   type="button"
                 >

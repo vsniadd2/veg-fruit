@@ -227,10 +227,10 @@ export default function Home() {
 
       <main className="overflow-x-hidden pt-24">
         {/* BEGIN: Hero Section */}
-        <section className="relative overflow-hidden bg-green-50 py-12 sm:py-16 lg:py-24">
+        <section className="relative overflow-x-hidden bg-green-100 py-12 sm:py-16 lg:py-24 mx-3 sm:mx-5 lg:mx-6 rounded-2xl sm:rounded-3xl mb-4 sm:mb-5">
           <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center">
             <div className="lg:w-1/2 z-10">
-              <span className="inline-block bg-green-100 text-forest-green px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-6">
+              <span className="inline-block bg-green-200 text-forest-green px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-6">
                 Свежие фрукты и овощи · круглый год
               </span>
               <h1
