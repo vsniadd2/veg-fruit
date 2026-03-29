@@ -85,6 +85,10 @@ export async function initDb() {
   `);
     await client.query(`
     alter table products
+    add column if not exists is_popular boolean not null default false;
+  `);
+    await client.query(`
+    alter table products
     add column if not exists weight_value numeric(12, 3) null;
   `);
     await client.query(`

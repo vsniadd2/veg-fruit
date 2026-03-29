@@ -39,6 +39,7 @@ type Product = {
   categoryId: string | null;
   categoryName: string | null;
   inStock?: boolean;
+  popular?: boolean;
   weightValue?: number | null;
   weightUnit?: "kg" | "g" | null;
   badge?: { kind: string; label: string } | null;
@@ -689,6 +690,7 @@ export default function Admin() {
   const [newProductImageFile, setNewProductImageFile] = useState<File | null>(null);
   const [newProductImagePreviewUrl, setNewProductImagePreviewUrl] = useState<string | null>(null);
   const [newProductSeasonal, setNewProductSeasonal] = useState(false);
+  const [newProductPopular, setNewProductPopular] = useState(false);
   const [newProductWeightValue, setNewProductWeightValue] = useState("");
   const [newProductWeightUnit, setNewProductWeightUnit] = useState<"kg" | "g">("g");
   const [isSavingProduct, setIsSavingProduct] = useState(false);
@@ -701,6 +703,7 @@ export default function Admin() {
   const [editProductWeightValue, setEditProductWeightValue] = useState("");
   const [editProductWeightUnit, setEditProductWeightUnit] = useState<"kg" | "g">("g");
   const [editProductSeasonal, setEditProductSeasonal] = useState(false);
+  const [editProductPopular, setEditProductPopular] = useState(false);
   const [editProductInStock, setEditProductInStock] = useState(true);
   const [isSavingProductEdit, setIsSavingProductEdit] = useState(false);
 
@@ -968,7 +971,14 @@ export default function Admin() {
         const text = await res.text().catch(() => "");
         throw new Error(text || `http_${res.status}`);
       }
-      await loadHomeCards();
+      const data = (await res.json()) as { ok?: boolean; item?: HomeCard };
+      if (data.ok === true && data.item) {
+        setHomeCards((prev) =>
+          prev.map((c) => (c.slot === slot ? { ...c, imageUrl: data.item!.imageUrl } : c)),
+        );
+      } else {
+        await loadHomeCards();
+      }
     } finally {
       setUploadingHomeCardSlot(null);
     }
@@ -1031,6 +1041,7 @@ export default function Admin() {
     );
     setEditProductWeightUnit(p.weightUnit === "kg" ? "kg" : "g");
     setEditProductSeasonal(p.badge?.kind === "seasonal");
+    setEditProductPopular(p.popular === true);
     setEditProductInStock(p.inStock !== false);
   };
 
@@ -1061,6 +1072,7 @@ export default function Admin() {
         body.badgeKind = null;
         body.badgeLabel = null;
       }
+      body.popular = editProductPopular;
       const wTrim = editProductWeightValue.trim();
       if (wTrim) {
         body.weightValue = Number.parseFloat(wTrim.replace(",", "."));
@@ -2034,6 +2046,7 @@ export default function Admin() {
                             form.append("badgeKind", "seasonal");
                             form.append("badgeLabel", "СЕЗОННОЕ");
                           }
+                          if (newProductPopular) form.append("popular", "1");
                           const wNew = newProductWeightValue.trim();
                           if (wNew) {
                             form.append("weightValue", wNew.replace(",", "."));
@@ -2052,6 +2065,7 @@ export default function Admin() {
                           setNewProductWeightUnit("g");
                           setNewProductImageFile(null);
                           setNewProductSeasonal(false);
+                          setNewProductPopular(false);
                           await loadDashboardProducts(1, debouncedDashboardSearch);
                         } catch (err) {
                           setError(getUploadErrorMessage(err, "Не удалось сохранить товар. Проверьте сервер и попробуйте ещё раз."));
@@ -2130,15 +2144,26 @@ export default function Admin() {
                           </div>
                           <p className="text-xs text-slate-500 mt-1">В каталоге показывается в строке с весом.</p>
                         </div>
-                        <label className="flex items-center gap-3 cursor-pointer select-none">
-                          <input
-                            checked={newProductSeasonal}
-                            className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
-                            onChange={(e) => setNewProductSeasonal(e.target.checked)}
-                            type="checkbox"
-                          />
-                          <span className="text-sm font-medium">Сезонный товар</span>
-                        </label>
+                        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <input
+                              checked={newProductSeasonal}
+                              className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                              onChange={(e) => setNewProductSeasonal(e.target.checked)}
+                              type="checkbox"
+                            />
+                            <span className="text-sm font-medium">Сезонный товар</span>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <input
+                              checked={newProductPopular}
+                              className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                              onChange={(e) => setNewProductPopular(e.target.checked)}
+                              type="checkbox"
+                            />
+                            <span className="text-sm font-medium">Популярный товар</span>
+                          </label>
+                        </div>
                         <div className="pt-2">
                           <button
                             className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2"
@@ -2359,162 +2384,15 @@ export default function Admin() {
                       ) : null}
                     </div>
                   </section>
-
-                  {editingProduct ? (
-                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-                      <div
-                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
-                        onClick={() => setEditingProduct(null)}
-                        role="button"
-                        tabIndex={-1}
-                      />
-                      <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-                          <h4 className="text-lg font-bold">Редактировать товар</h4>
-                          <p className="text-sm text-slate-500">Название, страна, цена, вес, категория, наличие и сезонность.</p>
-                        </div>
-                        <div className="p-6 space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-1.5">Название</label>
-                            <input
-                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                              value={editProductName}
-                              onChange={(e) => setEditProductName(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1.5">Категория</label>
-                            <select
-                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                              value={editProductCategoryId}
-                              onChange={(e) => setEditProductCategoryId(e.target.value)}
-                            >
-                              <option value="">Без категории</option>
-                              {categories.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1.5">Страна</label>
-                            <input
-                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                              value={editProductCountry}
-                              onChange={(e) => setEditProductCountry(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1.5">Цена</label>
-                            <input
-                              className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                              step="0.01"
-                              type="number"
-                              value={editProductPrice}
-                              onChange={(e) => setEditProductPrice(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1.5">Вес</label>
-                            <div className="flex gap-2 items-center">
-                              <input
-                                className="min-w-0 flex-1 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                                inputMode="decimal"
-                                placeholder="Очистите, чтобы убрать"
-                                type="text"
-                                value={editProductWeightValue}
-                                onChange={(e) => setEditProductWeightValue(e.target.value)}
-                              />
-                              <WeightUnitSelect value={editProductWeightUnit} onChange={setEditProductWeightUnit} />
-                            </div>
-                          </div>
-                          <label className="flex items-center gap-3 cursor-pointer select-none">
-                            <input
-                              checked={editProductInStock}
-                              className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
-                              onChange={(e) => setEditProductInStock(e.target.checked)}
-                              type="checkbox"
-                            />
-                            <span className="text-sm font-medium">В наличии</span>
-                          </label>
-                          <p className="text-xs text-slate-500">
-                            Снимите галочку, чтобы отметить товар как отсутствующий (в таблице будет красная подсветка).
-                          </p>
-                          <label className="flex items-center gap-3 cursor-pointer select-none">
-                            <input
-                              checked={editProductSeasonal}
-                              className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
-                              onChange={(e) => setEditProductSeasonal(e.target.checked)}
-                              type="checkbox"
-                            />
-                            <span className="text-sm font-medium">Сезонный товар</span>
-                          </label>
-                          <div className="flex gap-2 pt-2">
-                            <button
-                              className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
-                              disabled={isSavingProductEdit}
-                              onClick={() => void saveProductEdit()}
-                              type="button"
-                            >
-                              {isSavingProductEdit ? "Сохранение..." : "Сохранить"}
-                            </button>
-                            <button
-                              className="flex-1 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-colors"
-                              onClick={() => setEditingProduct(null)}
-                              type="button"
-                            >
-                              Отмена
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {deletingProductId ? (
-                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-                      <div
-                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
-                        onClick={() => setDeletingProductId(null)}
-                        role="button"
-                        tabIndex={-1}
-                      />
-                      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-                          <h4 className="text-lg font-bold">Удалить товар?</h4>
-                          <p className="text-sm text-slate-500">
-                            {dashboardProducts.find((x) => x.id === deletingProductId)?.name ?? "Товар"} будет удалён без
-                            восстановления.
-                          </p>
-                        </div>
-                        <div className="p-6 flex gap-2">
-                          <button
-                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
-                            disabled={isDeletingProduct}
-                            onClick={() => void confirmDeleteProduct()}
-                            type="button"
-                          >
-                            {isDeletingProduct ? "Удаление..." : "Удалить"}
-                          </button>
-                          <button
-                            className="flex-1 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-colors"
-                            onClick={() => setDeletingProductId(null)}
-                            type="button"
-                          >
-                            Отмена
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
                 </>
               ) : activeTab === "homeCards" ? (
                 <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                   <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-xl font-bold">Карточки главной</h3>
-                      <p className="text-slate-500 text-sm">Ровно 4 карточки: заголовок, второй текст, категория и изображение.</p>
+                      <p className="text-slate-500 text-sm">
+                        Ровно 4 карточки: заголовок, второй текст, изображение. Категория перехода на каталог — по желанию.
+                      </p>
                     </div>
                     <button
                       className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors"
@@ -2532,11 +2410,11 @@ export default function Admin() {
                         onSubmit={async (e) => {
                           e.preventDefault();
                           setError(null);
-                          if (!card.title.trim() || !card.subtitle.trim() || !card.categoryId) {
-                            setError(`Заполните все поля для карточки #${card.slot}.`);
+                          if (!card.title.trim() || !card.subtitle.trim()) {
+                            setError(`Заполните обязательные поля для карточки #${card.slot}.`);
                             setHomeCardSaveNotice({
                               kind: "error",
-                              text: `Заполните заголовок, второй текст и выберите категорию для карточки #${card.slot}.`,
+                              text: `Заполните заголовок и второй текст для карточки #${card.slot}.`,
                             });
                             return;
                           }
@@ -2601,7 +2479,7 @@ export default function Admin() {
                               )
                             }
                           >
-                            <option value="">Выберите категорию</option>
+                            <option value="">Без категории (весь каталог)</option>
                             {categories.map((c) => (
                               <option key={c.id} value={c.id}>
                                 {c.name}
@@ -3049,6 +2927,9 @@ export default function Admin() {
                             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Страна</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Цена</th>
                             <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Наличие</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">
+                              Действия
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -3096,11 +2977,29 @@ export default function Admin() {
                                     <span className="text-red-600 dark:text-red-400 font-medium">Нет в наличии</span>
                                   )}
                                 </td>
+                                <td className="px-6 py-4 text-right">
+                                  <button
+                                    className="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                                    type="button"
+                                    aria-label="Редактировать товар"
+                                    onClick={() => openProductEdit(p)}
+                                  >
+                                    <IconPencil className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors ml-2"
+                                    type="button"
+                                    aria-label="Удалить товар"
+                                    onClick={() => setDeletingProductId(p.id)}
+                                  >
+                                    <IconTrash className="w-5 h-5" />
+                                  </button>
+                                </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td className="px-6 py-8 text-sm text-slate-500" colSpan={5}>
+                              <td className="px-6 py-8 text-sm text-slate-500" colSpan={6}>
                                 {catalogProductsTotal === 0 && !debouncedCatalogProductSearch.trim()
                                   ? "Товары не найдены."
                                   : "Нет товаров по текущему поиску или фильтру. Измените запрос или сбросьте поиск."}
@@ -3175,6 +3074,170 @@ export default function Admin() {
                   <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Здесь будет контент выбранного раздела.</div>
                 </section>
               )}
+
+              {editingProduct ? (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                  <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
+                    onClick={() => setEditingProduct(null)}
+                    role="button"
+                    tabIndex={-1}
+                  />
+                  <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+                      <h4 className="text-lg font-bold">Редактировать товар</h4>
+                      <p className="text-sm text-slate-500">
+                        Название, страна, цена, вес, категория, наличие, сезонность и популярность.
+                      </p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Название</label>
+                        <input
+                          className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                          value={editProductName}
+                          onChange={(e) => setEditProductName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Категория</label>
+                        <select
+                          className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                          value={editProductCategoryId}
+                          onChange={(e) => setEditProductCategoryId(e.target.value)}
+                        >
+                          <option value="">Без категории</option>
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Страна</label>
+                        <input
+                          className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                          value={editProductCountry}
+                          onChange={(e) => setEditProductCountry(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Цена</label>
+                        <input
+                          className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                          step="0.01"
+                          type="number"
+                          value={editProductPrice}
+                          onChange={(e) => setEditProductPrice(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Вес</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            className="min-w-0 flex-1 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                            inputMode="decimal"
+                            placeholder="Очистите, чтобы убрать"
+                            type="text"
+                            value={editProductWeightValue}
+                            onChange={(e) => setEditProductWeightValue(e.target.value)}
+                          />
+                          <WeightUnitSelect value={editProductWeightUnit} onChange={setEditProductWeightUnit} />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          checked={editProductInStock}
+                          className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                          onChange={(e) => setEditProductInStock(e.target.checked)}
+                          type="checkbox"
+                        />
+                        <span className="text-sm font-medium">В наличии</span>
+                      </label>
+                      <p className="text-xs text-slate-500">
+                        Снимите галочку, чтобы отметить товар как отсутствующий (в таблице будет красная подсветка).
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            checked={editProductSeasonal}
+                            className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                            onChange={(e) => setEditProductSeasonal(e.target.checked)}
+                            type="checkbox"
+                          />
+                          <span className="text-sm font-medium">Сезонный товар</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            checked={editProductPopular}
+                            className="h-5 w-5 rounded-md border-slate-300 text-primary focus:ring-primary"
+                            onChange={(e) => setEditProductPopular(e.target.checked)}
+                            type="checkbox"
+                          />
+                          <span className="text-sm font-medium">Популярный товар</span>
+                        </label>
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
+                          disabled={isSavingProductEdit}
+                          onClick={() => void saveProductEdit()}
+                          type="button"
+                        >
+                          {isSavingProductEdit ? "Сохранение..." : "Сохранить"}
+                        </button>
+                        <button
+                          className="flex-1 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-colors"
+                          onClick={() => setEditingProduct(null)}
+                          type="button"
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {deletingProductId ? (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                  <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
+                    onClick={() => setDeletingProductId(null)}
+                    role="button"
+                    tabIndex={-1}
+                  />
+                  <div className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+                      <h4 className="text-lg font-bold">Удалить товар?</h4>
+                      <p className="text-sm text-slate-500">
+                        {dashboardProducts.find((x) => x.id === deletingProductId)?.name ??
+                          catalogProducts.find((x) => x.id === deletingProductId)?.name ??
+                          "Товар"}{" "}
+                        будет удалён без восстановления.
+                      </p>
+                    </div>
+                    <div className="p-6 flex gap-2">
+                      <button
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60"
+                        disabled={isDeletingProduct}
+                        onClick={() => void confirmDeleteProduct()}
+                        type="button"
+                      >
+                        {isDeletingProduct ? "Удаление..." : "Удалить"}
+                      </button>
+                      <button
+                        className="flex-1 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-colors"
+                        onClick={() => setDeletingProductId(null)}
+                        type="button"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </main>
         </div>

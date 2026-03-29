@@ -247,7 +247,7 @@ export default function Home() {
                 <button
                   className="bg-leaf-green hover:bg-forest-green text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto"
                   type="button"
-                  onClick={() => navigate("/catalog?sort=season")}
+                  onClick={() => navigate("/catalog?seasonal=1")}
                 >
                   Сезонные наборы
                 </button>

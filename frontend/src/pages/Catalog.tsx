@@ -20,6 +20,7 @@ type Product = {
   weightUnit?: "kg" | "g" | null;
   badge?: ProductBadge;
   inStock?: boolean;
+  popular?: boolean;
 };
 
 function formatPackageWeight(value: number | null | undefined, unit: "kg" | "g" | null | undefined): string | null {
@@ -45,11 +46,12 @@ const CATALOG_IMAGE_PLACEHOLDER =
 
 export default function Catalog() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const onlySeasonal = searchParams.get("seasonal") === "1";
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<"name" | "price" | "season">("name");
+  const [sort, setSort] = useState<"name" | "price" | "season" | "popular">("name");
   const [category, setCategory] = useState<Product["category"]>("vegetables");
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -60,6 +62,7 @@ export default function Catalog() {
         { value: "name", label: "По названию" },
         { value: "price", label: "По цене" },
         { value: "season", label: "По сезону" },
+        { value: "popular", label: "По популярности" },
       ] as const,
     [],
   );
@@ -70,6 +73,11 @@ export default function Catalog() {
     setCategory(categories[0]?.id ?? "vegetables");
     setPage(1);
     setSortMenuOpen(false);
+    setSearchParams((sp) => {
+      const next = new URLSearchParams(sp);
+      next.delete("seasonal");
+      return next;
+    });
   };
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement | null>(null);
@@ -148,7 +156,7 @@ export default function Catalog() {
   useEffect(() => {
     const s = searchParams.get("sort");
     if (!s) return;
-    if (s === "name" || s === "price" || s === "season") {
+    if (s === "name" || s === "price" || s === "season" || s === "popular") {
       setSort(s);
       setPage(1);
     } else if (s === "default") {
@@ -228,6 +236,7 @@ export default function Catalog() {
                 weightUnit: weightValue != null && weightUnit ? weightUnit : null,
                 badge,
                 inStock: it.inStock !== false,
+                popular: it.popular === true,
               } as Product;
             })
             .filter((p: Product) => Boolean(p.category));
@@ -266,16 +275,19 @@ export default function Catalog() {
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const p of products) {
+    const source = onlySeasonal ? products.filter((p) => p.badge?.kind === "seasonal") : products;
+    for (const p of source) {
       const key = p.category || "";
       counts[key] = (counts[key] ?? 0) + 1;
     }
     return counts;
-  }, [products]);
+  }, [products, onlySeasonal]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredProducts = useMemo(() => {
-    const categoryBase = products.filter((p) => p.category === category);
+    const categoryBase = onlySeasonal
+      ? products.filter((p) => p.badge?.kind === "seasonal")
+      : products.filter((p) => p.category === category);
 
     const base = normalizedQuery
       ? categoryBase.filter((p) => {
@@ -299,8 +311,13 @@ export default function Catalog() {
       return [...base].sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name, "ru"));
     }
 
+    if (sort === "popular") {
+      const pop = (p: Product) => (p.popular ? 1 : 0);
+      return [...base].sort((a, b) => pop(b) - pop(a) || a.name.localeCompare(b.name, "ru"));
+    }
+
     return base;
-  }, [category, normalizedQuery, products, sort]);
+  }, [category, normalizedQuery, onlySeasonal, products, sort]);
 
   const pageSize = 6;
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
@@ -368,7 +385,7 @@ export default function Catalog() {
 
               <nav className="space-y-1">
                 {categoriesToShow.map((c, idx) => {
-                  const isActive = c.id === category;
+                  const isActive = !onlySeasonal && c.id === category;
                   return (
                     <button
                       key={c.id}
@@ -379,6 +396,11 @@ export default function Catalog() {
                           : "text-stone-500 hover:translate-x-1 hover:text-[#1f642e]",
                       ].join(" ")}
                       onClick={() => {
+                        setSearchParams((sp) => {
+                          const next = new URLSearchParams(sp);
+                          next.delete("seasonal");
+                          return next;
+                        });
                         setCategory(c.id);
                         setPage(1);
                         setQuery("");
@@ -408,7 +430,17 @@ export default function Catalog() {
               <div>
                 <h1 className="text-5xl font-black text-[#1a1c1a] tracking-tighter mb-2">Качественные продукты</h1>
                 <p className="text-[#40493f] max-w-md">
-                  Тщательно отбираем фрукты, овощи и зелень: свежесть, натуральный вкус и витамины — то, что хочется видеть на столе каждый день.
+                  {onlySeasonal ? (
+                    <>
+                      Показаны все сезонные позиции из каталога. Чтобы смотреть категории по отдельности, выберите раздел слева или
+                      нажмите «Сбросить фильтры».
+                    </>
+                  ) : (
+                    <>
+                      Тщательно отбираем фрукты, овощи и зелень: свежесть, натуральный вкус и витамины — то, что хочется видеть на
+                      столе каждый день.
+                    </>
+                  )}
                 </p>
               </div>
               <div className="flex gap-4 items-center flex-wrap">
@@ -555,6 +587,11 @@ export default function Catalog() {
                       {p.badge ? (
                         <div className="absolute top-4 left-4 bg-[#736f60] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-sm">
                           {p.badge.label}
+                        </div>
+                      ) : null}
+                      {p.popular ? (
+                        <div className="absolute top-4 right-4 bg-amber-500 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-sm shadow-sm">
+                          ПОПУЛЯРНО
                         </div>
                       ) : null}
                     </div>

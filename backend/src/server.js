@@ -124,6 +124,15 @@ function parseWeightFromBody(body) {
   return { weightValue: n, weightUnit: rawUnit };
 }
 
+function truthyFormFlag(v) {
+  if (v === true || v === 1) return true;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    return s === "1" || s === "true" || s === "on" || s === "yes";
+  }
+  return false;
+}
+
 function mapHomeCardRow(row) {
   return {
     slot: Number(row.slot),
@@ -472,7 +481,7 @@ app.get("/api/products", async (req, res) => {
     const total = count.rows[0]?.count ?? 0;
 
     const items = await pool.query(
-      `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, p.in_stock, p.weight_value, p.weight_unit, c.name as category_name
+      `select p.id, p.name, p.country, p.price, p.image_url, p.image_data is not null as has_image_data, p.badge_kind, p.badge_label, p.category_id, p.in_stock, p.is_popular, p.weight_value, p.weight_unit, c.name as category_name
        ${fromSql}
        ${whereSql}
        order by p.created_at desc
@@ -496,6 +505,7 @@ app.get("/api/products", async (req, res) => {
           categoryId: r.category_id ?? null,
           categoryName: r.category_name ?? null,
           inStock: r.in_stock !== false,
+          popular: r.is_popular === true,
           weightValue: w.weightValue,
           weightUnit: w.weightUnit,
           badge: r.badge_kind
@@ -575,6 +585,7 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
         : null;
   const badgeKind = typeof body.badgeKind === "string" ? body.badgeKind.trim() : null;
   const badgeLabel = typeof body.badgeLabel === "string" ? body.badgeLabel.trim() : null;
+  const popular = truthyFormFlag(body.popular);
 
   const parsedWeight = parseWeightFromBody(body);
   if ("error" in parsedWeight) {
@@ -611,9 +622,9 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     const { rows } =
       normalizedImage && normalizedImage.ok
         ? await pool.query(
-            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock)
-             values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8, $9::numeric, $10, true)
-             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, weight_value, weight_unit`,
+            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock, is_popular)
+             values ($1, $2::uuid, $3, $4::numeric, null, $5, $6, $7, $8, $9::numeric, $10, true, $11)
+             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, is_popular, weight_value, weight_unit`,
             [
               name,
               categoryId,
@@ -625,13 +636,14 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
               badgeLabel,
               weightValue,
               weightUnit,
+              popular,
             ],
           )
         : await pool.query(
-            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock)
-             values ($1, $2::uuid, $3, $4::numeric, null, null, null, $5, $6, $7::numeric, $8, true)
-             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, weight_value, weight_unit`,
-            [name, categoryId, country, price, badgeKind, badgeLabel, weightValue, weightUnit],
+            `insert into products (name, category_id, country, price, image_url, image_data, image_mime, badge_kind, badge_label, weight_value, weight_unit, in_stock, is_popular)
+             values ($1, $2::uuid, $3, $4::numeric, null, null, null, $5, $6, $7::numeric, $8, true, $9)
+             returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, is_popular, weight_value, weight_unit`,
+            [name, categoryId, country, price, badgeKind, badgeLabel, weightValue, weightUnit, popular],
           );
     const r = rows[0];
     const category = r.category_id
@@ -648,6 +660,7 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       categoryId: r.category_id ?? null,
       categoryName,
       inStock: r.in_stock !== false,
+      popular: r.is_popular === true,
       weightValue: w.weightValue,
       weightUnit: w.weightUnit,
       badge: r.badge_kind ? { kind: r.badge_kind, label: r.badge_label ?? "" } : null,
@@ -692,6 +705,11 @@ app.put("/api/products/:id", async (req, res) => {
         ? body.badgeLabel.trim() || null
         : null;
   const inStock = !(body.inStock === false || body.inStock === "false");
+  const popular =
+    body.popular === true ||
+    body.popular === "true" ||
+    body.popular === 1 ||
+    body.popular === "1";
 
   const parsedWeight = parseWeightFromBody(body);
   if ("error" in parsedWeight) {
@@ -722,10 +740,11 @@ app.put("/api/products/:id", async (req, res) => {
            badge_label = $6,
            in_stock = $7,
            weight_value = $8::numeric,
-           weight_unit = $9
-       where id = $10::uuid
-       returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, weight_value, weight_unit`,
-      [name, categoryId, country, price, badgeKind, badgeLabel, inStock, weightValue, weightUnit, id],
+           weight_unit = $9,
+           is_popular = $10
+       where id = $11::uuid
+       returning id, name, category_id, country, price, image_url, image_data is not null as has_image_data, badge_kind, badge_label, in_stock, is_popular, weight_value, weight_unit`,
+      [name, categoryId, country, price, badgeKind, badgeLabel, inStock, weightValue, weightUnit, popular, id],
     );
     const r = rows[0];
     if (!r) {
@@ -746,6 +765,7 @@ app.put("/api/products/:id", async (req, res) => {
       categoryId: r.category_id ?? null,
       categoryName,
       inStock: r.in_stock !== false,
+      popular: r.is_popular === true,
       weightValue: w.weightValue,
       weightUnit: w.weightUnit,
       badge: r.badge_kind ? { kind: r.badge_kind, label: r.badge_label ?? "" } : null,
@@ -817,16 +837,14 @@ app.put("/api/admin/home-cards/:slot", async (req, res) => {
     res.status(400).json({ ok: false, error: "subtitle_required" });
     return;
   }
-  if (!categoryId) {
-    res.status(400).json({ ok: false, error: "category_required" });
-    return;
-  }
 
   try {
-    const category = await pool.query(`select id from categories where id = $1::uuid`, [categoryId]);
-    if (!category.rows[0]) {
-      res.status(400).json({ ok: false, error: "category_not_found" });
-      return;
+    if (categoryId) {
+      const category = await pool.query(`select id from categories where id = $1::uuid`, [categoryId]);
+      if (!category.rows[0]) {
+        res.status(400).json({ ok: false, error: "category_not_found" });
+        return;
+      }
     }
 
     const updated = await pool.query(
