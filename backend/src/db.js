@@ -17,16 +17,23 @@ export const pool = new Pool({
   password: process.env.PGPASSWORD ?? "veg_fruit_password",
 });
 
+/** Одна миграция за раз: backend при старте и seed могут вызывать initDb() параллельно — без блокировки возможен duplicate key в pg_type. */
+const INIT_DB_ADVISORY_LOCK_KEY = 872035901;
+
 export async function initDb() {
-  await pool.query(`create extension if not exists pgcrypto;`);
-  await pool.query(`
+  const client = await pool.connect();
+  try {
+    await client.query(`select pg_advisory_lock($1)`, [INIT_DB_ADVISORY_LOCK_KEY]);
+
+    await client.query(`create extension if not exists pgcrypto;`);
+    await client.query(`
     create table if not exists categories (
       id uuid primary key default gen_random_uuid(),
       name text not null unique,
       created_at timestamptz not null default now()
     );
   `);
-  await pool.query(`
+    await client.query(`
     create table if not exists products (
       id uuid primary key default gen_random_uuid(),
       name text not null,
@@ -37,23 +44,23 @@ export async function initDb() {
       created_at timestamptz not null default now()
     );
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     add column if not exists category_id uuid null references categories(id) on delete set null;
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     add column if not exists price numeric(10, 2) null;
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     add column if not exists image_data bytea null;
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     add column if not exists image_mime text null;
   `);
-  await pool.query(`
+    await client.query(`
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -67,24 +74,24 @@ export async function initDb() {
       END IF;
     END $$;
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     alter column image_url drop not null;
   `);
-  await pool.query(`create index if not exists idx_products_category_id on products(category_id);`);
-  await pool.query(`
+    await client.query(`create index if not exists idx_products_category_id on products(category_id);`);
+    await client.query(`
     alter table products
     add column if not exists in_stock boolean not null default true;
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     add column if not exists weight_value numeric(12, 3) null;
   `);
-  await pool.query(`
+    await client.query(`
     alter table products
     add column if not exists weight_unit text null;
   `);
-  await pool.query(`
+    await client.query(`
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -95,7 +102,7 @@ export async function initDb() {
       END IF;
     END $$;
   `);
-  await pool.query(`
+    await client.query(`
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -110,7 +117,7 @@ export async function initDb() {
     END $$;
   `);
 
-  await pool.query(`
+    await client.query(`
     create table if not exists suppliers (
       id uuid primary key default gen_random_uuid(),
       name text not null,
@@ -128,7 +135,7 @@ export async function initDb() {
       updated_at timestamptz not null default now()
     );
   `);
-  await pool.query(`
+    await client.query(`
     create table if not exists supplier_delivery_history (
       id uuid primary key default gen_random_uuid(),
       supplier_id uuid not null references suppliers(id) on delete cascade,
@@ -137,12 +144,12 @@ export async function initDb() {
       created_at timestamptz not null default now()
     );
   `);
-  await pool.query(`create index if not exists idx_suppliers_active on suppliers(is_active);`);
-  await pool.query(`create index if not exists idx_suppliers_next_delivery on suppliers(next_delivery_at);`);
-  await pool.query(`create index if not exists idx_suppliers_product_tags on suppliers using gin (product_tags);`);
-  await pool.query(`create index if not exists idx_supplier_history_supplier on supplier_delivery_history(supplier_id);`);
+    await client.query(`create index if not exists idx_suppliers_active on suppliers(is_active);`);
+    await client.query(`create index if not exists idx_suppliers_next_delivery on suppliers(next_delivery_at);`);
+    await client.query(`create index if not exists idx_suppliers_product_tags on suppliers using gin (product_tags);`);
+    await client.query(`create index if not exists idx_supplier_history_supplier on supplier_delivery_history(supplier_id);`);
 
-  await pool.query(`
+    await client.query(`
     create table if not exists home_cards (
       slot smallint primary key check (slot between 1 and 4),
       title text not null default '',
@@ -153,7 +160,7 @@ export async function initDb() {
       updated_at timestamptz not null default now()
     );
   `);
-  await pool.query(`
+    await client.query(`
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -167,8 +174,8 @@ export async function initDb() {
       END IF;
     END $$;
   `);
-  await pool.query(`create index if not exists idx_home_cards_category_id on home_cards(category_id);`);
-  await pool.query(`
+    await client.query(`create index if not exists idx_home_cards_category_id on home_cards(category_id);`);
+    await client.query(`
     insert into home_cards (slot, title, subtitle)
     values
       (1, 'Сезонные фрукты', 'От 120 BYN/кг'),
@@ -177,5 +184,13 @@ export async function initDb() {
       (4, 'Овощи', 'От 85 BYN/кг')
     on conflict (slot) do nothing;
   `);
+  } finally {
+    try {
+      await client.query(`select pg_advisory_unlock($1)`, [INIT_DB_ADVISORY_LOCK_KEY]);
+    } catch {
+      /* ignore */
+    }
+    client.release();
+  }
 }
 
