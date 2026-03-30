@@ -99,7 +99,7 @@ function mapProductWeight(row) {
   const n = typeof wv === "number" ? wv : Number.parseFloat(String(wv));
   if (!Number.isFinite(n)) return { weightValue: null, weightUnit: null };
   const unit = String(wu).toLowerCase();
-  if (unit !== "kg" && unit !== "g") return { weightValue: null, weightUnit: null };
+  if (unit !== "kg" && unit !== "g" && unit !== "pcs") return { weightValue: null, weightUnit: null };
   return { weightValue: n, weightUnit: unit };
 }
 
@@ -120,7 +120,7 @@ function parseWeightFromBody(body) {
       ? rawVal
       : Number.parseFloat(String(rawVal).replace(",", ".").trim());
   if (!Number.isFinite(n) || n <= 0) return { error: "invalid_weight" };
-  if (rawUnit !== "kg" && rawUnit !== "g") return { error: "invalid_weight_unit" };
+  if (rawUnit !== "kg" && rawUnit !== "g" && rawUnit !== "pcs") return { error: "invalid_weight_unit" };
   return { weightValue: n, weightUnit: rawUnit };
 }
 
@@ -833,10 +833,7 @@ app.put("/api/admin/home-cards/:slot", async (req, res) => {
     res.status(400).json({ ok: false, error: "title_required" });
     return;
   }
-  if (!subtitle) {
-    res.status(400).json({ ok: false, error: "subtitle_required" });
-    return;
-  }
+  // subtitle is optional (can be empty string)
 
   try {
     if (categoryId) {

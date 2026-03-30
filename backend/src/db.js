@@ -98,12 +98,12 @@ export async function initDb() {
     await client.query(`
     DO $$
     BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'ck_products_weight_unit_allowed'
-      ) THEN
-        ALTER TABLE products ADD CONSTRAINT ck_products_weight_unit_allowed
-        CHECK (weight_unit IS NULL OR weight_unit IN ('kg', 'g'));
+      -- Allow 'pcs' alongside weight units. We may have an older constraint from previous versions.
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_products_weight_unit_allowed') THEN
+        ALTER TABLE products DROP CONSTRAINT ck_products_weight_unit_allowed;
       END IF;
+      ALTER TABLE products ADD CONSTRAINT ck_products_weight_unit_allowed
+      CHECK (weight_unit IS NULL OR weight_unit IN ('kg', 'g', 'pcs'));
     END $$;
   `);
     await client.query(`

@@ -41,7 +41,7 @@ type Product = {
   inStock?: boolean;
   popular?: boolean;
   weightValue?: number | null;
-  weightUnit?: "kg" | "g" | null;
+  weightUnit?: "kg" | "g" | "pcs" | null;
   badge?: { kind: string; label: string } | null;
 };
 type HomeCard = {
@@ -51,6 +51,10 @@ type HomeCard = {
   categoryId: string | null;
   categoryName: string | null;
   imageUrl: string | null;
+};
+
+type HomeCardDraft = HomeCard & {
+  subtitleEnabled: boolean;
 };
 
 function isLikelyImageFile(file: File) {
@@ -93,14 +97,16 @@ function AdminProductImage(props: { src: string | null; alt: string; className?:
   return <img alt={alt} className={className} src={resolvedSrc} />;
 }
 
-const WEIGHT_UNIT_OPTIONS: Array<{ value: "kg" | "g"; label: string }> = [
+type PackageUnit = "kg" | "g" | "pcs";
+const WEIGHT_UNIT_OPTIONS: Array<{ value: PackageUnit; label: string }> = [
   { value: "g", label: "гр" },
   { value: "kg", label: "кг" },
+  { value: "pcs", label: "шт" },
 ];
 
 function WeightUnitSelect(props: {
-  value: "kg" | "g";
-  onChange: (v: "kg" | "g") => void;
+  value: PackageUnit;
+  onChange: (v: PackageUnit) => void;
   id?: string;
 }) {
   const { value, onChange, id } = props;
@@ -692,7 +698,7 @@ export default function Admin() {
   const [newProductSeasonal, setNewProductSeasonal] = useState(false);
   const [newProductPopular, setNewProductPopular] = useState(false);
   const [newProductWeightValue, setNewProductWeightValue] = useState("");
-  const [newProductWeightUnit, setNewProductWeightUnit] = useState<"kg" | "g">("g");
+  const [newProductWeightUnit, setNewProductWeightUnit] = useState<PackageUnit>("g");
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -701,7 +707,7 @@ export default function Admin() {
   const [editProductPrice, setEditProductPrice] = useState("");
   const [editProductCategoryId, setEditProductCategoryId] = useState("");
   const [editProductWeightValue, setEditProductWeightValue] = useState("");
-  const [editProductWeightUnit, setEditProductWeightUnit] = useState<"kg" | "g">("g");
+  const [editProductWeightUnit, setEditProductWeightUnit] = useState<PackageUnit>("g");
   const [editProductSeasonal, setEditProductSeasonal] = useState(false);
   const [editProductPopular, setEditProductPopular] = useState(false);
   const [editProductInStock, setEditProductInStock] = useState(true);
@@ -709,7 +715,7 @@ export default function Admin() {
 
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
-  const [homeCards, setHomeCards] = useState<HomeCard[]>([]);
+  const [homeCards, setHomeCards] = useState<HomeCardDraft[]>([]);
   const [isLoadingHomeCards, setIsLoadingHomeCards] = useState(false);
   const [savingHomeCardSlot, setSavingHomeCardSlot] = useState<number | null>(null);
   const [uploadingHomeCardSlot, setUploadingHomeCardSlot] = useState<number | null>(null);
@@ -932,13 +938,21 @@ export default function Admin() {
     try {
       const data = await adminFetchJson<{ ok: boolean; items: HomeCard[] }>("/api/admin/home-cards");
       const rows = [...(data.items ?? [])].sort((a, b) => Number(a.slot) - Number(b.slot));
-      setHomeCards(rows);
+      setHomeCards(
+        rows.map((c) => ({
+          ...c,
+          // Normalize to keep inputs controlled (no undefined/null).
+          title: typeof c.title === "string" ? c.title : "",
+          subtitle: typeof c.subtitle === "string" ? c.subtitle : "",
+          subtitleEnabled: Boolean(typeof c.subtitle === "string" && c.subtitle.trim()),
+        })),
+      );
     } finally {
       setIsLoadingHomeCards(false);
     }
   };
 
-  const saveHomeCard = async (card: HomeCard) => {
+  const saveHomeCard = async (card: HomeCardDraft) => {
     setSavingHomeCardSlot(card.slot);
     try {
       await adminFetchJson<{ ok: boolean; item: HomeCard }>(`/api/admin/home-cards/${card.slot}`, {
@@ -946,7 +960,7 @@ export default function Admin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: card.title,
-          subtitle: card.subtitle,
+          subtitle: card.subtitleEnabled ? card.subtitle : "",
           categoryId: card.categoryId,
         }),
       });
@@ -1039,7 +1053,7 @@ export default function Admin() {
     setEditProductWeightValue(
       wv !== null && wv !== undefined && Number.isFinite(Number(wv)) ? String(wv) : "",
     );
-    setEditProductWeightUnit(p.weightUnit === "kg" ? "kg" : "g");
+    setEditProductWeightUnit(p.weightUnit === "kg" || p.weightUnit === "pcs" ? p.weightUnit : "g");
     setEditProductSeasonal(p.badge?.kind === "seasonal");
     setEditProductPopular(p.popular === true);
     setEditProductInStock(p.inStock !== false);
@@ -2127,22 +2141,53 @@ export default function Admin() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1.5">Вес (необязательно)</label>
+                          <label className="block text-sm font-medium mb-1.5">Фасовка (необязательно)</label>
+                          <div className="flex flex-wrap items-center gap-4 mb-2">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                checked={newProductWeightUnit !== "pcs"}
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                                type="checkbox"
+                                onChange={(e) => {
+                                  if (!e.target.checked) return;
+                                  setNewProductWeightUnit("g");
+                                }}
+                              />
+                              <span className="text-sm font-medium">По весу</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                checked={newProductWeightUnit === "pcs"}
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                                type="checkbox"
+                                onChange={(e) => {
+                                  if (!e.target.checked) return;
+                                  setNewProductWeightUnit("pcs");
+                                }}
+                              />
+                              <span className="text-sm font-medium">В штуках</span>
+                            </label>
+                          </div>
                           <div className="flex gap-2 items-center">
                             <input
                               className="min-w-0 flex-1 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                              inputMode="decimal"
-                              placeholder="Например: 500"
+                              inputMode={newProductWeightUnit === "pcs" ? "numeric" : "decimal"}
+                              placeholder={newProductWeightUnit === "pcs" ? "Например: 6" : "Например: 500"}
                               type="text"
                               value={newProductWeightValue}
                               onChange={(e) => setNewProductWeightValue(e.target.value)}
                             />
-                            <WeightUnitSelect
-                              value={newProductWeightUnit}
-                              onChange={setNewProductWeightUnit}
-                            />
+                            {newProductWeightUnit === "pcs" ? (
+                              <div className="shrink-0 w-[5.5rem] rounded-xl border border-[#1f642e]/25 bg-[#f9faf6]/80 px-2.5 py-2.5 text-sm font-semibold text-[#1a1c1a] shadow-sm backdrop-blur-sm text-center">
+                                шт
+                              </div>
+                            ) : (
+                              <WeightUnitSelect value={newProductWeightUnit} onChange={setNewProductWeightUnit} />
+                            )}
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">В каталоге показывается в строке с весом.</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {newProductWeightUnit === "pcs" ? "В каталоге показывается как количество в штуках." : "В каталоге показывается в строке с весом."}
+                          </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
                           <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -2410,11 +2455,11 @@ export default function Admin() {
                         onSubmit={async (e) => {
                           e.preventDefault();
                           setError(null);
-                          if (!card.title.trim() || !card.subtitle.trim()) {
+                          if (!card.title.trim()) {
                             setError(`Заполните обязательные поля для карточки #${card.slot}.`);
                             setHomeCardSaveNotice({
                               kind: "error",
-                              text: `Заполните заголовок и второй текст для карточки #${card.slot}.`,
+                              text: `Заполните заголовок для карточки #${card.slot}.`,
                             });
                             return;
                           }
@@ -2457,16 +2502,41 @@ export default function Admin() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1.5">Второй текст</label>
-                          <input
-                            className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                            value={card.subtitle}
-                            onChange={(e) =>
-                              setHomeCards((prev) =>
-                                prev.map((x) => (x.slot === card.slot ? { ...x, subtitle: e.target.value } : x)),
-                              )
-                            }
-                          />
+                          <div className="flex items-center justify-between gap-3 mb-1.5">
+                            <label className="block text-sm font-medium">Второй текст</label>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <input
+                              className={[
+                                "w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary",
+                                "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:opacity-80",
+                                "dark:disabled:bg-slate-800/60 dark:disabled:text-slate-500 dark:disabled:border-slate-700",
+                              ].join(" ")}
+                              value={card.subtitle ?? ""}
+                              disabled={!card.subtitleEnabled}
+                              onChange={(e) =>
+                                setHomeCards((prev) =>
+                                  prev.map((x) => (x.slot === card.slot ? { ...x, subtitle: e.target.value } : x)),
+                                )
+                              }
+                            />
+                            <label className="shrink-0 flex items-center gap-2 cursor-pointer select-none px-2 py-2 -mr-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50">
+                              <input
+                                checked={card.subtitleEnabled}
+                                className="h-6 w-6 rounded-md border-slate-300 text-primary focus:ring-primary"
+                                type="checkbox"
+                                onChange={(e) => {
+                                  const enabled = e.target.checked;
+                                  setHomeCards((prev) =>
+                                    prev.map((x) =>
+                                      x.slot === card.slot ? { ...x, subtitleEnabled: enabled, subtitle: enabled ? x.subtitle : "" } : x,
+                                    ),
+                                  );
+                                }}
+                              />
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">вкл</span>
+                            </label>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1.5">Категория перехода</label>
@@ -3133,17 +3203,49 @@ export default function Admin() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1.5">Вес</label>
+                        <label className="block text-sm font-medium mb-1.5">Фасовка</label>
+                        <div className="flex flex-wrap items-center gap-4 mb-2">
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              checked={editProductWeightUnit !== "pcs"}
+                              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                              type="checkbox"
+                              onChange={(e) => {
+                                if (!e.target.checked) return;
+                                setEditProductWeightUnit("g");
+                              }}
+                            />
+                            <span className="text-sm font-medium">По весу</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              checked={editProductWeightUnit === "pcs"}
+                              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                              type="checkbox"
+                              onChange={(e) => {
+                                if (!e.target.checked) return;
+                                setEditProductWeightUnit("pcs");
+                              }}
+                            />
+                            <span className="text-sm font-medium">В штуках</span>
+                          </label>
+                        </div>
                         <div className="flex gap-2 items-center">
                           <input
                             className="min-w-0 flex-1 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-primary focus:border-primary"
-                            inputMode="decimal"
+                            inputMode={editProductWeightUnit === "pcs" ? "numeric" : "decimal"}
                             placeholder="Очистите, чтобы убрать"
                             type="text"
                             value={editProductWeightValue}
                             onChange={(e) => setEditProductWeightValue(e.target.value)}
                           />
-                          <WeightUnitSelect value={editProductWeightUnit} onChange={setEditProductWeightUnit} />
+                          {editProductWeightUnit === "pcs" ? (
+                            <div className="shrink-0 w-[5.5rem] rounded-xl border border-[#1f642e]/25 bg-[#f9faf6]/80 px-2.5 py-2.5 text-sm font-semibold text-[#1a1c1a] shadow-sm backdrop-blur-sm text-center">
+                              шт
+                            </div>
+                          ) : (
+                            <WeightUnitSelect value={editProductWeightUnit} onChange={setEditProductWeightUnit} />
+                          )}
                         </div>
                       </div>
                       <label className="flex items-center gap-3 cursor-pointer select-none">

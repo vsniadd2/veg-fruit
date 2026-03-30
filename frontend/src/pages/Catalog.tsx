@@ -17,16 +17,20 @@ type Product = {
   categoryName?: string | null; // for convenience in UI
   price?: number | null;
   weightValue?: number | null;
-  weightUnit?: "kg" | "g" | null;
+  weightUnit?: "kg" | "g" | "pcs" | null;
   badge?: ProductBadge;
   inStock?: boolean;
   popular?: boolean;
 };
 
-function formatPackageWeight(value: number | null | undefined, unit: "kg" | "g" | null | undefined): string | null {
+function formatPackageWeight(value: number | null | undefined, unit: "kg" | "g" | "pcs" | null | undefined): string | null {
   if (value == null || unit == null) return null;
   const v = Number(value);
   if (!Number.isFinite(v) || v <= 0) return null;
+  if (unit === "pcs") {
+    const n = Math.round(v);
+    return `${n} шт`;
+  }
   if (unit === "g") {
     const rounded = Math.abs(v - Math.round(v)) < 1e-6 ? Math.round(v) : v;
     return `${rounded} гр`;
@@ -252,7 +256,7 @@ export default function Catalog() {
                   : typeof wv === "string" && wv.trim()
                     ? Number.parseFloat(wv)
                     : null;
-              const weightUnit = wu === "kg" || wu === "g" ? wu : null;
+              const weightUnit = wu === "kg" || wu === "g" || wu === "pcs" ? wu : null;
               return {
                 id: String(it.id),
                 name: String(it.name ?? ""),
@@ -757,7 +761,9 @@ export default function Catalog() {
                         {p.country ? `Страна: ${p.country}` : "Свежий сезонный продукт из нашей коллекции."}
                       </p>
                       {packLabel ? (
-                        <p className="text-sm leading-snug text-[#40493f]">Вес: {packLabel}</p>
+                        <p className="text-sm leading-snug text-[#40493f]">
+                          {p.weightUnit === "pcs" ? "Количество" : "Вес"}: {packLabel}
+                        </p>
                       ) : null}
                       {available ? null : (
                         <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium">

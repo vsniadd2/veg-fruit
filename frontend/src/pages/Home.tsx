@@ -252,7 +252,7 @@ export default function Home() {
                   Сезонные наборы
                 </button>
                 <Link
-                  className="border-2 border-leaf-green text-leaf-green hover:bg-leaf-green hover:text-white px-8 py-4 rounded-xl font-bold transition-all w-full sm:w-auto text-center"
+                  className="border-2 border-leaf-green text-leaf-green hover:bg-leaf-green hover:text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto text-center"
                   to="/catalog"
                 >
                   Весь каталог
