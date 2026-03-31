@@ -572,21 +572,23 @@ export default function Home() {
               <div className="relative z-10 max-w-2xl mx-auto">
                 <h2 className="heading-serif text-4xl lg:text-5xl text-white mb-6">Готовы попробовать самое свежее?</h2>
                 <p className="text-green-100/80 mb-10 text-lg">
-                  Подпишитесь на нашу рассылку и получите скидку 10% на ваш первый заказ!
+                  Загляните в каталог — подберите фрукты, овощи и зелень на любой вкус. Рассылку и сбор контактов мы не ведём, просто свежие продукты на вашем столе.
                 </p>
-                <form className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <input
-                    className="px-8 py-4 rounded-xl text-gray-900 w-full sm:w-80 focus:ring-2 focus:ring-leaf-green border-none"
-                    placeholder="Ваш e-mail"
-                    type="email"
-                  />
-                  <button
-                    className="bg-vibrant-orange hover:bg-orange-600 text-white font-bold px-10 py-4 rounded-xl transition-all"
-                    type="submit"
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-stretch sm:items-center">
+                  <Link
+                    className="inline-flex justify-center items-center bg-vibrant-orange hover:bg-orange-600 text-white font-bold px-10 py-4 rounded-xl transition-all transform hover:-translate-y-1 w-full sm:w-auto text-center shadow-lg shadow-black/10"
+                    to="/catalog"
                   >
-                    Подписаться
+                    Весь каталог
+                  </Link>
+                  <button
+                    className="inline-flex justify-center items-center border-2 border-white/90 text-white font-bold px-10 py-4 rounded-xl transition-all transform hover:-translate-y-1 hover:bg-white hover:text-forest-green w-full sm:w-auto"
+                    type="button"
+                    onClick={() => navigate("/catalog?seasonal=1")}
+                  >
+                    Сезонные наборы
                   </button>
-                </form>
+                </div>
               </div>
             </div>
           </div>

@@ -2,8 +2,6 @@ import { createPortal } from "react-dom";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { AdminSuppliers } from "./admin/AdminSuppliers";
-
 const AUTH_KEY = "gh_admin_authed_v1";
 const ACCESS_TOKEN_KEY = "gh_admin_access_token_v1";
 const REFRESH_TOKEN_KEY = "gh_admin_refresh_token_v1";
@@ -17,14 +15,13 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DASHBOARD_PRODUCTS_PAGE_SIZE = 10;
 const CATALOG_TAB_PAGE_SIZE = 10;
 
-type AdminTab = "dashboard" | "homeCards" | "catalog" | "orders" | "suppliers" | "reports";
+type AdminTab = "dashboard" | "homeCards" | "catalog" | "orders" | "reports";
 
 const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   dashboard: "Панель",
   homeCards: "Карточки главной",
   catalog: "Каталог",
   orders: "Заказы",
-  suppliers: "Поставщики",
   reports: "Отчёты",
 };
 
@@ -329,15 +326,6 @@ function IconCart(props: { className?: string }) {
   );
 }
 
-function IconUsers(props: { className?: string }) {
-  return (
-    <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z" stroke="currentColor" strokeWidth="2" />
-      <path d="M4 21a8 8 0 0 1 16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function IconChart(props: { className?: string }) {
   return (
     <svg className={props.className} fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -517,7 +505,6 @@ function parseAdminTab(value: string | null): AdminTab | null {
     case "homeCards":
     case "catalog":
     case "orders":
-    case "suppliers":
     case "reports":
       return value;
     default:
@@ -1541,15 +1528,9 @@ export default function Admin() {
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
           <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
             <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
-            <span className="text-xs text-[#707a6c]">Версия 29.03.2026-v3</span>
+            <span className="text-xs text-[#707a6c]">Версия 01.04.2026</span>
           </div>
           <div className="flex gap-6">
-            <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
-              Политика конфиденциальности
-            </a>
-            <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="#">
-              Условия использования
-            </a>
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="/">
               На сайт
             </a>
@@ -1635,20 +1616,6 @@ export default function Admin() {
               >
                 <IconCart className="w-5 h-5" />
                 <span className="text-sm font-medium">Заказы</span>
-              </a>
-              <a
-                className={[
-                  "flex items-center gap-3 px-3 py-2 rounded-xl transition-colors",
-                  activeTab === "suppliers" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
-                ].join(" ")}
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveTab("suppliers");
-                }}
-              >
-                <IconUsers className="w-5 h-5" />
-                <span className="text-sm font-medium">Поставщики</span>
               </a>
               <a
                 className={[
@@ -1752,21 +1719,6 @@ export default function Admin() {
                 >
                   <IconCart className="h-5 w-5" />
                   <span className="text-sm font-medium">Заказы</span>
-                </a>
-                <a
-                  className={[
-                    "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
-                    activeTab === "suppliers" ? "bg-primary text-white" : "text-slate-600 hover:bg-primary/10",
-                  ].join(" ")}
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveTab("suppliers");
-                    setMobileNavOpen(false);
-                  }}
-                >
-                  <IconUsers className="h-5 w-5" />
-                  <span className="text-sm font-medium">Поставщики</span>
                 </a>
                 <a
                   className={[
@@ -3133,8 +3085,6 @@ export default function Admin() {
                     ) : null}
                   </section>
                 </div>
-              ) : activeTab === "suppliers" ? (
-                <AdminSuppliers adminFetchJson={adminFetchJson} setError={setError} />
               ) : (
                 <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                   <div className="p-6 border-b border-slate-100 dark:border-slate-800">

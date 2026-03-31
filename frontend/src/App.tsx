@@ -3,8 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Admin from "./pages/Admin";
 import Catalog from "./pages/Catalog";
 import Home from "./pages/Home";
-import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
-import PublicOfferPage from "./pages/PublicOfferPage";
 
 export default function App() {
   return (
@@ -18,8 +16,6 @@ export default function App() {
         <Route element={<Home />} path="/" />
         <Route element={<Catalog />} path="/catalog" />
         <Route element={<Admin />} path="/admin" />
-        <Route element={<PrivacyPolicyPage />} path="/privacy" />
-        <Route element={<PublicOfferPage />} path="/offer" />
         <Route element={<Navigate replace to="/" />} path="*" />
       </Routes>
     </BrowserRouter>
