@@ -942,7 +942,7 @@ export default function Admin() {
   const saveHomeCard = async (card: HomeCardDraft) => {
     setSavingHomeCardSlot(card.slot);
     try {
-      await adminFetchJson<{ ok: boolean; item: HomeCard }>(`/api/admin/home-cards/${card.slot}`, {
+      const data = await adminFetchJson<{ ok: boolean; item?: HomeCard }>(`/api/admin/home-cards/${card.slot}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -951,7 +951,28 @@ export default function Admin() {
           categoryId: card.categoryId,
         }),
       });
-      await loadHomeCards().catch(() => {});
+      const item = data.item;
+      if (item && Number(item.slot) === card.slot) {
+        const title = typeof item.title === "string" ? item.title : "";
+        const subtitle = typeof item.subtitle === "string" ? item.subtitle : "";
+        setHomeCards((prev) =>
+          prev.map((c) =>
+            c.slot === card.slot
+              ? {
+                  ...c,
+                  title,
+                  subtitle,
+                  subtitleEnabled: Boolean(subtitle.trim()),
+                  categoryId: item.categoryId ?? null,
+                  categoryName: item.categoryName ?? null,
+                  imageUrl: item.imageUrl ?? null,
+                }
+              : c,
+          ),
+        );
+      } else {
+        await loadHomeCards().catch(() => {});
+      }
     } finally {
       setSavingHomeCardSlot(null);
     }
@@ -1528,7 +1549,7 @@ export default function Admin() {
         <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
           <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
             <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
-            <span className="text-xs text-[#707a6c]">Версия 01.04.2026</span>
+            <span className="text-xs text-[#707a6c]">Версия 01.04.2026-v1</span>
           </div>
           <div className="flex gap-6">
             <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="/">

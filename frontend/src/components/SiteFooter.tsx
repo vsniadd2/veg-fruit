@@ -156,7 +156,7 @@ export default function SiteFooter() {
         <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
           <p>© 2026 Миксголдфрукт. Все права защищены.</p>
           <span className="text-gray-300 hidden md:inline">•</span>
-          <p className="text-gray-400">Версия 01.04.2026</p>
+          <p className="text-gray-400">Версия 01.04.2026-v1</p>
         </div>
       </div>
     </footer>

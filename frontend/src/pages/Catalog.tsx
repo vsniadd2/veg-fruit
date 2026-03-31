@@ -56,7 +56,7 @@ export default function Catalog() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"name" | "price" | "season" | "popular">("name");
-  const [category, setCategory] = useState<Product["category"]>("vegetables");
+  const [category, setCategory] = useState<Product["category"]>("");
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
   const [apiProducts, setApiProducts] = useState<Product[]>([]);
@@ -74,7 +74,7 @@ export default function Catalog() {
   const resetFilters = () => {
     setQuery("");
     setSort("name");
-    setCategory(categories[0]?.id ?? "vegetables");
+    setCategory(categories[0]?.id ?? "");
     setPage(1);
     setSortMenuOpen(false);
     setCategoryMenuOpen(false);
@@ -111,6 +111,14 @@ export default function Catalog() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!categories.length) {
+      setCategory("");
+      return;
+    }
+    setCategory((prev) => (prev && categories.some((c) => c.id === prev) ? prev : categories[0].id));
+  }, [categories]);
 
   useEffect(() => {
     if (!sortMenuOpen) return;
@@ -291,19 +299,9 @@ export default function Catalog() {
   const products = apiProducts;
 
 
-  const fallbackCategories = useMemo(
-    () => [
-      { id: "vegetables", label: "Овощи" },
-      { id: "fruits", label: "Фрукты" },
-      { id: "greens", label: "Зелень и травы" },
-      { id: "berries", label: "Ягоды" },
-    ],
-    [],
-  );
-
   const categoriesToShow = useMemo(
-    () => (categories.length ? categories.map((c) => ({ id: c.id, label: c.name })) : fallbackCategories),
-    [categories, fallbackCategories],
+    () => categories.map((c) => ({ id: c.id, label: c.name })),
+    [categories],
   );
 
   const categoryCounts = useMemo(() => {
@@ -434,6 +432,9 @@ export default function Catalog() {
               </div>
 
               <nav className="space-y-1">
+                {categoriesToShow.length === 0 ? (
+                  <p className="px-8 text-sm text-[#707a6e]">Категорий пока нет — добавьте их в админке или запустите сидирование БД.</p>
+                ) : null}
                 {categoriesToShow.map((c, idx) => {
                   const isActive = !onlySeasonal && c.id === category;
                   return (
@@ -535,6 +536,9 @@ export default function Catalog() {
                             <div className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-[#707a6e]">
                               Сейчас: все сезонные
                             </div>
+                          ) : null}
+                          {!onlySeasonal && categoriesToShow.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-[#707a6e]">Категорий пока нет.</div>
                           ) : null}
                           {categoriesToShow.map((c) => {
                             const active = !onlySeasonal && c.id === category;
