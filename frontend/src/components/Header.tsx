@@ -95,14 +95,17 @@ export default function Header({
       data-purpose="navigation-header"
     >
       <div className="flex items-center gap-8 lg:gap-12 min-w-0">
-        <div className="flex min-w-0 items-center gap-2.5 shrink-0">
+        <div className="group flex min-w-0 items-center gap-2.5 shrink-0">
           <span
-            className="pointer-events-none flex items-center justify-center rounded-xl bg-[#0d601b] p-1.5 text-white shadow-sm shadow-[#0d601b]/25"
+            className="pointer-events-none flex items-center justify-center rounded-xl bg-[#0d601b] p-1.5 text-white shadow-sm shadow-[#0d601b]/25 transition-transform duration-200 group-hover:scale-[1.03]"
             aria-hidden="true"
           >
             <BrandLeafMark className="h-5 w-5" />
           </span>
-          <Link className="truncate text-2xl font-black text-[#1f642e]" to="/">
+          <Link
+            className="truncate text-2xl font-black text-[#1f642e] transition-colors duration-200 hover:text-[#195324] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f642e]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f9faf6]"
+            to="/"
+          >
             Миксголдфрукт
           </Link>
         </div>

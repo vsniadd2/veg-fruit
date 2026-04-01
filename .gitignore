@@ -2,3 +2,6 @@
 ssl/*.pem
 ssl/*.key
 ssl/*.crt
+
+# DB backups
+backups/

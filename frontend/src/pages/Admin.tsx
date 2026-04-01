@@ -63,7 +63,8 @@ function extractErrorCode(err: unknown) {
   const raw = err instanceof Error ? err.message : String(err);
   if (!raw) return "";
   try {
-    const parsed = JSON.parse(raw) as { error?: unknown };
+    const parsed = JSON.parse(raw) as { error?: unknown; message?: unknown };
+    if (typeof parsed.message === "string" && parsed.message.trim()) return parsed.message.trim();
     if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
   } catch {
     // ignore parse failures
@@ -79,7 +80,7 @@ function getUploadErrorMessage(err: unknown, fallback: string) {
     return "Не удалось обработать фото с телефона. Сохраните его как JPG/PNG и загрузите снова.";
   }
   if (code.includes("image_conversion_failed")) return "Не удалось обработать изображение. Попробуйте другой файл.";
-  return fallback;
+  return code || fallback;
 }
 
 /** Превью: только <img>. Fetch с Authorization ломает внешние URL (Wikimedia) из‑за CORS. Эндпоинты картинок публичные. */
@@ -1545,18 +1546,6 @@ export default function Admin() {
             </div>
           </div>
         ) : null}
-
-        <footer className="fixed bottom-0 w-full flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3 sm:gap-8 px-6 sm:px-10 h-16 bg-transparent">
-          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
-            <span className="text-sm text-[#40493d]">© 2024 Админ-панель «Миксголдфрукт». Все права защищены.</span>
-            <span className="text-xs text-[#707a6c]">Версия 01.04.2026-v1</span>
-          </div>
-          <div className="flex gap-6">
-            <a className="text-[#707a6c] hover:text-[#0d601b] transition-colors opacity-80 hover:opacity-100 text-sm" href="/">
-              На сайт
-            </a>
-          </div>
-        </footer>
 
         <style>{`
           @keyframes float {

@@ -214,14 +214,29 @@ export default function Catalog() {
       void (async () => {
         try {
           const q = query.trim();
-          const params = new URLSearchParams();
-          params.set("page", "1");
-          params.set("pageSize", "50");
-          if (q) params.set("q", q);
+          const PAGE_SIZE = 50;
+          const MAX_PAGES = 80;
 
-          const res = await fetch(`${API_BASE_URL}/api/products?${params.toString()}`, { signal: controller.signal });
-          if (!res.ok) throw new Error(`http_${res.status}`);
-          const data = (await res.json()) as { items?: Array<any> };
+          const allItems: Array<any> = [];
+          let pageNum = 1;
+          let total = Number.POSITIVE_INFINITY;
+
+          while (!cancelled && pageNum <= MAX_PAGES && allItems.length < total) {
+            const params = new URLSearchParams();
+            params.set("page", String(pageNum));
+            params.set("pageSize", String(PAGE_SIZE));
+            if (q) params.set("q", q);
+
+            const res = await fetch(`${API_BASE_URL}/api/products?${params.toString()}`, { signal: controller.signal });
+            if (!res.ok) throw new Error(`http_${res.status}`);
+            const data = (await res.json()) as { items?: Array<any>; total?: number };
+            if (typeof data.total === "number" && Number.isFinite(data.total) && data.total >= 0) total = data.total;
+
+            const chunk = data.items ?? [];
+            allItems.push(...chunk);
+            if (chunk.length < PAGE_SIZE) break;
+            pageNum += 1;
+          }
 
           const badgeFromApi = (badge: any): ProductBadge | undefined => {
             if (!badge?.kind) return undefined;
@@ -247,7 +262,7 @@ export default function Catalog() {
             return `${API_BASE_URL}/${url}`;
           };
 
-          const mapped: Product[] = (data.items ?? [])
+          const mapped: Product[] = allItems
             .map((it: any) => {
               const badge = badgeFromApi(it.badge);
               const price =
@@ -294,7 +309,7 @@ export default function Catalog() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [API_BASE_URL, query]);
 
   const products = apiProducts;
 
