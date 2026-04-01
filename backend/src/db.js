@@ -188,6 +188,68 @@ export async function initDb() {
       (4, 'Овощи', 'От 85 BYN/кг')
     on conflict (slot) do nothing;
   `);
+
+    await client.query(`
+    create sequence if not exists customer_orders_number_seq
+      as bigint
+      start with 100001
+      increment by 1
+      minvalue 100001
+      no maxvalue
+      cache 1;
+  `);
+    await client.query(`
+    create table if not exists customer_orders (
+      id uuid primary key default gen_random_uuid(),
+      phone text not null,
+      address text not null,
+      order_payload jsonb not null,
+      created_at timestamptz not null default now()
+    );
+  `);
+    await client.query(`
+    alter table customer_orders
+    add column if not exists order_number bigint;
+  `);
+    await client.query(`
+    update customer_orders o
+    set order_number = v.n
+    from (
+      select id, nextval('customer_orders_number_seq') as n
+      from customer_orders
+      where order_number is null
+      order by created_at
+    ) as v
+    where o.id = v.id;
+  `);
+    await client.query(`
+    alter table customer_orders
+    alter column order_number set default nextval('customer_orders_number_seq');
+  `);
+    await client.query(`
+    alter table customer_orders
+    alter column order_number set not null;
+  `);
+    await client.query(`
+    create unique index if not exists uq_customer_orders_order_number on customer_orders(order_number);
+  `);
+    await client.query(`create index if not exists idx_customer_orders_created_at on customer_orders(created_at desc);`);
+    await client.query(`
+    alter table customer_orders
+    add column if not exists status text not null default 'new';
+  `);
+    await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_customer_orders_status'
+      ) THEN
+        ALTER TABLE customer_orders
+        ADD CONSTRAINT ck_customer_orders_status
+        CHECK (status IN ('new', 'processing', 'completed'));
+      END IF;
+    END $$;
+  `);
   } finally {
     try {
       await client.query(`select pg_advisory_unlock($1)`, [INIT_DB_ADVISORY_LOCK_KEY]);

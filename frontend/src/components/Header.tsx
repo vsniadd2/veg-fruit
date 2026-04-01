@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useCart } from "../context/CartContext";
 
 function BrandLeafMark(props: { className?: string }) {
   return (
@@ -31,9 +32,11 @@ export default function Header({
 }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { totalCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isHome = location.pathname === "/";
   const isCatalogActive = location.pathname.startsWith("/catalog");
+  const isCartActive = location.pathname === "/cart";
   const navClass = (isActive: boolean) =>
     isActive
       ? "text-[#1f642e] font-bold border-b-2 border-[#1f642e] pb-1"
@@ -141,10 +144,23 @@ export default function Header({
             ) : null}
 
             <button
-              className="hidden md:inline-flex h-12 px-6 rounded-full bg-[#1f642e] text-white text-base font-bold leading-none items-center justify-center shadow-lg shadow-[#1f642e]/20 hover:bg-[#195324] transition-colors"
+              className={[
+                "hidden md:inline-flex h-12 px-6 rounded-full text-base font-bold leading-none items-center justify-center transition-colors gap-2 relative shadow-lg",
+                isCartActive
+                  ? "bg-[#195324] text-white ring-2 ring-[#1f642e]/40 shadow-[#1f642e]/25"
+                  : "bg-[#1f642e] text-white shadow-[#1f642e]/20 hover:bg-[#195324]",
+              ].join(" ")}
               type="button"
+              onClick={() => navigate("/cart")}
+              aria-label="Корзина"
+              aria-current={isCartActive ? "page" : undefined}
             >
               Корзина
+              {totalCount > 0 && (
+                <span className="inline-flex items-center justify-center bg-white text-[#1f642e] text-xs font-black rounded-full min-w-[1.25rem] h-5 px-1 leading-none">
+                  {totalCount > 99 ? "99+" : totalCount}
+                </span>
+              )}
             </button>
           </>
         ) : null}
@@ -253,24 +269,40 @@ export default function Header({
                   >
                     Каталог
                   </Link>
-                  {showRightSection ? (
-                    <>
-                      <div className="my-1 border-t border-white/45" />
-                      <button
-                        type="button"
+                  <div className="my-1 border-t border-white/45" />
+                  <button
+                    type="button"
+                    aria-current={isCartActive ? "page" : undefined}
+                    className={[
+                      "mt-auto w-full px-4 py-4 rounded-2xl text-base font-bold text-center",
+                      "border-2 transition-[background-color,transform,border-color,box-shadow] duration-200 active:scale-[0.99]",
+                      "flex items-center justify-center gap-2",
+                      isCartActive
+                        ? "text-[#1f642e] bg-[#f9faf6]/93 backdrop-blur-sm border-[#1f642e]/40 shadow-sm shadow-[#1f642e]/15 ring-1 ring-[#1f642e]/10 motion-reduce:backdrop-blur-none"
+                        : [
+                            "text-white bg-[#1f642e] border-white/55",
+                            "shadow-[0_10px_28px_rgba(31,100,46,0.45),0_2px_0_rgba(0,0,0,0.12)_inset,inset_0_1px_0_rgba(255,255,255,0.35)]",
+                            "ring-2 ring-[#0d2e16]/25",
+                            "hover:bg-[#195324] hover:border-white/65",
+                          ].join(" "),
+                    ].join(" ")}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate("/cart");
+                    }}
+                  >
+                    Корзина
+                    {totalCount > 0 && (
+                      <span
                         className={[
-                          "mt-auto w-full px-4 py-4 rounded-2xl text-base font-bold text-center text-white",
-                          "bg-[#1f642e] border-2 border-white/55",
-                          "shadow-[0_10px_28px_rgba(31,100,46,0.45),0_2px_0_rgba(0,0,0,0.12)_inset,inset_0_1px_0_rgba(255,255,255,0.35)]",
-                          "ring-2 ring-[#0d2e16]/25",
-                          "hover:bg-[#195324] hover:border-white/65 transition-[background-color,transform,border-color] duration-200 active:scale-[0.99]",
+                          "inline-flex items-center justify-center text-xs font-black rounded-full min-w-[1.25rem] h-5 px-1 leading-none",
+                          isCartActive ? "bg-[#1f642e] text-white" : "bg-white text-[#1f642e]",
                         ].join(" ")}
-                        onClick={() => setMobileMenuOpen(false)}
                       >
-                        Корзина
-                      </button>
-                    </>
-                  ) : null}
+                        {totalCount > 99 ? "99+" : totalCount}
+                      </span>
+                    )}
+                  </button>
                 </nav>
               </div>
             </>

@@ -37,7 +37,7 @@ export default function SiteFooter() {
             <p className="text-gray-600 text-sm leading-relaxed">
               Магазин Миксголдфрукт — ваш надежный поставщик качественных фруктов, овощей, зелени и экзотических
               продуктов. Мы тщательно отбираем товары, чтобы гарантировать максимальную свежесть, натуральный вкус и
-              витамины на вашем столе. Предлагаем доступные цены, удобное расположение и возможность розничного заказа.
+              витамины на вашем столе. Предлагаем доступные цены, удобное расположение.
             </p>
           </section>
           <section aria-labelledby="footer-delivery-heading">
@@ -176,7 +176,7 @@ export default function SiteFooter() {
         <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
           <p>© 2026 Миксголдфрукт. Все права защищены.</p>
           <span className="text-gray-300 hidden md:inline">•</span>
-          <p className="text-gray-400">Версия 01.04.2026-v2</p>
+          <p className="text-gray-400">Версия 01.04.2026-v3</p>
         </div>
       </div>
     </footer>

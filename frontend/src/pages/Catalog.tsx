@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import SiteFooter from "../components/SiteFooter";
+import { type CartItem, useCart } from "../context/CartContext";
 
 type ProductBadge =
   | { kind: "seasonal"; label: string; className: "bg-white/90 backdrop-blur text-[#2d6a4f]" }
@@ -47,6 +48,18 @@ const CATALOG_IMAGE_PLACEHOLDER =
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="512" viewBox="0 0 800 512"><rect fill="#f3f4f6" width="800" height="512"/><text x="400" y="256" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-family="system-ui,sans-serif" font-size="18">Нет фото</text></svg>`,
   );
+
+function productToCartPayload(p: Product): Omit<CartItem, "quantity"> {
+  const subtitle =
+    [p.country ? `${p.country}` : null, formatPackageWeight(p.weightValue, p.weightUnit)].filter(Boolean).join(", ") || "1 шт";
+  return {
+    id: p.id,
+    name: p.name,
+    subtitle,
+    imageUrl: p.imageUrl,
+    price: p.price ?? 0,
+  };
+}
 
 export default function Catalog() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -406,6 +419,14 @@ export default function Catalog() {
     return `${p.price.toFixed(2)}`;
   };
 
+  const { addToCart, updateQuantity, items: cartItems } = useCart();
+
+  const qtyByProductId = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of cartItems) m.set(it.id, it.quantity);
+    return m;
+  }, [cartItems]);
+
   const selectCatalogCategory = useCallback((id: string) => {
     setSearchParams((sp) => {
       const next = new URLSearchParams(sp);
@@ -735,6 +756,7 @@ export default function Catalog() {
                 const packLabel = formatPackageWeight(p.weightValue, p.weightUnit);
                 const eager = index < 3;
                 const available = p.inStock !== false;
+                const inCartQty = qtyByProductId.get(p.id) ?? 0;
                 return (
                   <article
                     key={p.id}
@@ -790,18 +812,50 @@ export default function Catalog() {
                           Нет в наличии
                         </div>
                       )}
-                      <button
-                        className={[
-                          "mt-auto w-full py-3 rounded-full font-bold transition-colors duration-300",
-                          available
-                            ? "bg-[#a8f0b3] text-[#2a703f] hover:bg-[#1f642e] hover:text-white"
-                            : "bg-[#e8e9e6] text-[#8a9289] cursor-not-allowed",
-                        ].join(" ")}
-                        disabled={!available}
-                        type="button"
-                      >
-                        В корзину
-                      </button>
+                      {available && inCartQty > 0 ? (
+                        <div
+                          className="mt-auto flex w-full select-none items-center rounded-full bg-[#f0f7ed] py-1 pl-1 pr-1"
+                          role="group"
+                          aria-label={`Количество «${p.name}» в корзине`}
+                        >
+                          <button
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xl font-light leading-none text-[#1a1c1a] transition-colors hover:bg-[#dce8d8] active:scale-95"
+                            type="button"
+                            aria-label="Уменьшить количество"
+                            onClick={() => updateQuantity(p.id, inCartQty - 1)}
+                          >
+                            −
+                          </button>
+                          <span className="min-w-[2ch] flex-1 text-center text-base font-semibold tabular-nums text-[#1a1c1a]">
+                            {inCartQty}
+                          </span>
+                          <button
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xl font-light leading-none text-[#1a1c1a] transition-colors hover:bg-[#dce8d8] active:scale-95"
+                            type="button"
+                            aria-label="Увеличить количество"
+                            onClick={() => updateQuantity(p.id, inCartQty + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className={[
+                            "mt-auto w-full py-3 rounded-full font-bold transition-colors duration-300",
+                            available
+                              ? "bg-[#a8f0b3] text-[#2a703f] hover:bg-[#1f642e] hover:text-white"
+                              : "bg-[#e8e9e6] text-[#8a9289] cursor-not-allowed",
+                          ].join(" ")}
+                          disabled={!available}
+                          type="button"
+                          onClick={() => {
+                            if (!available) return;
+                            addToCart(productToCartPayload(p));
+                          }}
+                        >
+                          В корзину
+                        </button>
+                      )}
                     </div>
                   </article>
                 );

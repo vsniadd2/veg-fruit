@@ -14,7 +14,15 @@ const app = express();
 app.use(express.json());
 
 const corsOrigins = String(
-  process.env.CORS_ORIGINS ?? "http://127.0.0.1:5173,http://localhost:5173",
+  process.env.CORS_ORIGINS ??
+    [
+      "http://127.0.0.1:5173",
+      "http://localhost:5173",
+      "http://127.0.0.1:5174",
+      "http://localhost:5174",
+      "http://127.0.0.1:5175",
+      "http://localhost:5175",
+    ].join(","),
 )
   .split(",")
   .map((s) => s.trim())
@@ -286,6 +294,144 @@ app.get("/api/public/home-cards/:slot/image", async (req, res) => {
     res.end(row.image_data);
   } catch {
     res.status(500).end();
+  }
+});
+
+function normalizeBelarusPhoneDigits(raw) {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (d.startsWith("80") && d.length === 11) return `375${d.slice(2)}`;
+  if (!d.startsWith("375") && d.length === 9) return `375${d}`;
+  return d;
+}
+
+function isValidBelarusPhone(raw) {
+  return /^375\d{9}$/.test(normalizeBelarusPhoneDigits(raw));
+}
+
+function formatBelarusPhoneE164(raw) {
+  const d = normalizeBelarusPhoneDigits(raw);
+  return /^375\d{9}$/.test(d) ? `+${d}` : "";
+}
+
+function isValidInternationalPhoneRaw(raw) {
+  const t = String(raw ?? "").trim();
+  if (t.length < 8 || t.length > 64) return false;
+  if (!/\d/.test(t)) return false;
+  return /^[+\d\s\-().]+$/.test(t);
+}
+
+/** Публичная заявка на заказ с сайта (без авторизации). */
+app.post("/api/public/orders", async (req, res) => {
+  const body = req.body ?? {};
+  const phoneRaw = typeof body.phone === "string" ? body.phone.trim() : "";
+  const phoneCountryMode = body.phoneCountryMode === "other" ? "other" : "by";
+  const address = typeof body.address === "string" ? body.address.trim() : "";
+  const items = Array.isArray(body.items) ? body.items : null;
+
+  let phoneStored = "";
+  if (phoneCountryMode === "by") {
+    if (!isValidBelarusPhone(phoneRaw)) {
+      res.status(400).json({ ok: false, error: "invalid_phone_by" });
+      return;
+    }
+    phoneStored = formatBelarusPhoneE164(phoneRaw);
+  } else {
+    if (!isValidInternationalPhoneRaw(phoneRaw)) {
+      res.status(400).json({ ok: false, error: "invalid_phone_other" });
+      return;
+    }
+    phoneStored = phoneRaw.slice(0, 64);
+  }
+
+  if (!address || address.length < 5) {
+    res.status(400).json({ ok: false, error: "invalid_address" });
+    return;
+  }
+  if (!items || items.length === 0) {
+    res.status(400).json({ ok: false, error: "empty_cart" });
+    return;
+  }
+
+  const subtotal = typeof body.subtotal === "number" && Number.isFinite(body.subtotal) ? body.subtotal : null;
+  const delivery = typeof body.delivery === "number" && Number.isFinite(body.delivery) ? body.delivery : null;
+  const discount = typeof body.discount === "number" && Number.isFinite(body.discount) ? body.discount : null;
+  const total = typeof body.total === "number" && Number.isFinite(body.total) ? body.total : null;
+
+  const payload = {
+    items,
+    subtotal,
+    delivery,
+    discount,
+    total,
+    promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
+    phoneCountryMode,
+  };
+
+  try {
+    const { rows } = await pool.query(
+      `insert into customer_orders (phone, address, order_payload)
+       values ($1, $2, $3::jsonb)
+       returning order_number`,
+      [phoneStored, address.slice(0, 2000), JSON.stringify(payload)],
+    );
+    const orderNumber = rows[0]?.order_number;
+    res.json({ ok: true, orderId: orderNumber != null ? String(orderNumber) : "" });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+const CUSTOMER_ORDER_STATUSES = new Set(["new", "processing", "completed"]);
+
+app.patch("/api/admin/customer-orders/:orderNumber", async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+
+  const orderNumber = Number.parseInt(String(req.params.orderNumber ?? ""), 10);
+  if (!Number.isFinite(orderNumber)) {
+    res.status(400).json({ ok: false, error: "invalid_order_number" });
+    return;
+  }
+
+  const status = typeof req.body?.status === "string" ? req.body.status.trim() : "";
+  if (!CUSTOMER_ORDER_STATUSES.has(status)) {
+    res.status(400).json({ ok: false, error: "invalid_status" });
+    return;
+  }
+
+  try {
+    const r = await pool.query(`update customer_orders set status = $1 where order_number = $2`, [
+      status,
+      orderNumber,
+    ]);
+    if (r.rowCount === 0) {
+      res.status(404).json({ ok: false, error: "not_found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.get("/api/admin/customer-orders", async (req, res) => {
+  const payload = requireAdmin(req, res);
+  if (!payload) return;
+
+  const limitRaw = req.query.limit;
+  const limit = Math.min(200, Math.max(1, Number.parseInt(String(limitRaw ?? "100"), 10) || 100));
+
+  try {
+    const { rows } = await pool.query(
+      `select id, order_number, phone, address, order_payload, created_at, status
+       from customer_orders
+       order by created_at desc
+       limit $1`,
+      [limit],
+    );
+    res.json({ ok: true, items: rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
   }
 });
 
