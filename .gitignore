@@ -5,3 +5,10 @@ ssl/*.crt
 
 # DB backups
 backups/
+
+# Env files (секреты)
+.env
+.env.*
+
+# Docker Compose overrides (секреты на сервере)
+docker-compose.override.yml

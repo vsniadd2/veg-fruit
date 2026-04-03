@@ -18,7 +18,6 @@ function parseJsonField(v, fallback) {
   return Array.isArray(v) || typeof v === "object" ? v : fallback;
 }
 
-/** PostgreSQL `date` / timestamps come back as Date; String(d).slice(0,10) is wrong (e.g. "Sun Mar 22"). */
 function pgDateToIso(v) {
   if (v == null) return null;
   if (v instanceof Date) {

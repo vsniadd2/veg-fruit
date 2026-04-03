@@ -8,6 +8,7 @@ import sharp from "sharp";
 
 import { initDb, pool } from "./db.js";
 import { registerSuppliersAdminRoutes } from "./suppliersAdminRoutes.js";
+import { TELEGRAM_DEFAULT_BOT_TOKEN, TELEGRAM_DEFAULT_CHAT_IDS } from "./telegramConfig.js";
 
 const app = express();
 
@@ -44,10 +45,115 @@ const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL ?? "15m";
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL ?? "30d";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+function envTrimUnquote(v) {
+  let s = String(v ?? "").trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+/** Выкл. только явным TELEGRAM_ORDER_NOTIFICATIONS_ENABLED=false */
+const TELEGRAM_ORDER_NOTIFICATIONS_ENABLED =
+  envTrimUnquote(process.env.TELEGRAM_ORDER_NOTIFICATIONS_ENABLED) !== "false";
+const TELEGRAM_BOT_TOKEN = envTrimUnquote(process.env.TELEGRAM_BOT_TOKEN) || TELEGRAM_DEFAULT_BOT_TOKEN;
+
+function parseTelegramChatIdsRaw(raw) {
+  return [...new Set(String(raw ?? "").split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean))];
+}
+
+/** Несколько chat_id: через запятую/пробел в TELEGRAM_CHAT_ID или дефолты из telegramConfig. */
+const TELEGRAM_CHAT_IDS = (() => {
+  const fromEnv = parseTelegramChatIdsRaw(envTrimUnquote(process.env.TELEGRAM_CHAT_ID));
+  if (fromEnv.length > 0) return fromEnv;
+  return [...TELEGRAM_DEFAULT_CHAT_IDS];
+})();
+
+/** Telegram sendMessage: chat_id числом для личных чатов. */
+function telegramChatIdStringToApi(s) {
+  if (/^-?\d+$/.test(s)) {
+    const n = Number(s);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  return s;
+}
+
+const TELEGRAM_CHAT_IDS_FOR_API = TELEGRAM_CHAT_IDS.map(telegramChatIdStringToApi);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_IMAGE_BYTES },
 });
+
+function canSendTelegramOrderNotifications() {
+  return TELEGRAM_ORDER_NOTIFICATIONS_ENABLED && Boolean(TELEGRAM_BOT_TOKEN) && TELEGRAM_CHAT_IDS.length > 0;
+}
+
+if (process.env.NODE_ENV !== "test") {
+  const tgOn = canSendTelegramOrderNotifications();
+  console.log(
+    "[veg-fruit] telegram order notifications:",
+    tgOn ? `on (${TELEGRAM_CHAT_IDS.length} чатов)` : "off",
+    tgOn
+      ? ""
+      : `(set TELEGRAM_ORDER_NOTIFICATIONS_ENABLED=false to disable; private chat: open bot and /start)`,
+  );
+}
+
+function escapeTelegramText(s) {
+  return String(s ?? "").replaceAll(/[\u0000-\u001F]/g, " ").trim();
+}
+
+async function sendTelegramMessage(text, options = {}) {
+  if (!TELEGRAM_ORDER_NOTIFICATIONS_ENABLED) {
+    console.warn("[telegram] заказ: пропуск — TELEGRAM_ORDER_NOTIFICATIONS_ENABLED=false");
+    return { ok: true, skipped: true, reason: "disabled" };
+  }
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.warn("[telegram] заказ: пропуск — пустой TELEGRAM_BOT_TOKEN");
+    return { ok: true, skipped: true, reason: "no_token" };
+  }
+  if (TELEGRAM_CHAT_IDS.length === 0) {
+    console.warn("[telegram] заказ: пропуск — нет TELEGRAM_CHAT_ID");
+    return { ok: true, skipped: true, reason: "no_chat_id" };
+  }
+
+  const parseMode = options.parseMode === "HTML" ? "HTML" : null;
+  const outText = parseMode ? String(text ?? "").slice(0, 4096) : escapeTelegramText(text).slice(0, 4096);
+
+  let anyFailed = false;
+  for (const chat_id of TELEGRAM_CHAT_IDS_FOR_API) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const body = {
+        chat_id,
+        text: outText,
+      };
+      if (parseMode) body.parse_mode = parseMode;
+
+      const r = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data?.ok) {
+        console.error("telegram_send_failed", { chat_id, status: r.status, data });
+        anyFailed = true;
+      } else {
+        console.log("[telegram] уведомление о заказе отправлено", { chat_id });
+      }
+    } catch (e) {
+      console.error("telegram_send_error", { chat_id, err: e });
+      anyFailed = true;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return anyFailed ? { ok: false, error: "telegram_send_failed" } : { ok: true };
+}
 
 function sendUploadError(res, status, error, message) {
   res.status(status).json({ ok: false, error, message });
@@ -320,6 +426,107 @@ function isValidInternationalPhoneRaw(raw) {
   return /^[+\d\s\-().]+$/.test(t);
 }
 
+function formatBynLine(n) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  const rounded = Math.round(n * 100) / 100;
+  return `${rounded.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BYN`;
+}
+
+/** Для parse_mode=HTML: экранируем данные заказчика. */
+function escapeTelegramHtml(s) {
+  return String(s ?? "")
+    .replaceAll(/[\u0000-\u001F]/g, " ")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatOrderForTelegram({ orderNumber, phone, address, payload }) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const h = escapeTelegramHtml;
+  const b = (safeInner) => `<b>${safeInner}</b>`;
+  const lines = [];
+
+  lines.push(b(`Новый заказ №${h(String(orderNumber))}`));
+  lines.push("");
+  lines.push("Телефон");
+  lines.push(h(phone ? String(phone).trim() : "—"));
+  lines.push("");
+  lines.push("Адрес");
+  lines.push(h(address ? String(address).trim() : "—"));
+  lines.push("");
+
+  const total = typeof payload?.total === "number" && Number.isFinite(payload.total) ? payload.total : null;
+  const subtotal = typeof payload?.subtotal === "number" && Number.isFinite(payload.subtotal) ? payload.subtotal : null;
+  const delivery = typeof payload?.delivery === "number" && Number.isFinite(payload.delivery) ? payload.delivery : null;
+  const discount = typeof payload?.discount === "number" && Number.isFinite(payload.discount) ? payload.discount : null;
+
+  if (subtotal != null) {
+    lines.push("Товары");
+    lines.push(b(formatBynLine(subtotal)));
+    lines.push("");
+  }
+  if (delivery != null) {
+    lines.push("Доставка");
+    lines.push(b(formatBynLine(delivery)));
+    lines.push("");
+  }
+  if (discount != null) {
+    lines.push("Скидка");
+    lines.push(b(formatBynLine(discount)));
+    lines.push("");
+  }
+  if (total != null) {
+    lines.push("Итого");
+    lines.push(b(formatBynLine(total)));
+    lines.push("");
+  }
+
+  const promoCode = typeof payload?.promoCode === "string" ? payload.promoCode.trim() : "";
+  if (promoCode) {
+    lines.push("Промокод");
+    lines.push(h(promoCode));
+    lines.push("");
+  }
+
+  lines.push(`Состав (${items.length})`);
+  lines.push("");
+
+  if (items.length === 0) {
+    lines.push("(пусто)");
+  } else {
+    let i = 0;
+    for (const it of items.slice(0, 50)) {
+      i += 1;
+      const name = typeof it?.name === "string" ? it.name.trim() : "";
+      const subtitle = typeof it?.subtitle === "string" ? it.subtitle.trim() : "";
+      const qty = typeof it?.quantity === "number" && Number.isFinite(it.quantity) ? it.quantity : null;
+      const price = typeof it?.price === "number" && Number.isFinite(it.price) ? it.price : null;
+      const title = name || "(без названия)";
+      lines.push(`${i}. ${h(title)}`);
+      if (subtitle) lines.push(h(subtitle));
+      let lineSum = null;
+      if (qty != null && price != null) lineSum = Math.round(qty * price * 100) / 100;
+      const qtyStr = qty != null ? `${String(qty).replace(".", ",")} шт` : null;
+      if (qtyStr != null && price != null && lineSum != null) {
+        lines.push(b(`${qtyStr} × ${formatBynLine(price)} — ${formatBynLine(lineSum)}`));
+      } else if (qtyStr != null && price != null) {
+        lines.push(b(`${qtyStr} × ${formatBynLine(price)}`));
+      } else if (qtyStr != null) {
+        lines.push(b(qtyStr));
+      } else if (price != null) {
+        lines.push(b(formatBynLine(price)));
+      }
+      lines.push("");
+    }
+    if (items.length > 50) {
+      lines.push(h(`… и ещё ${items.length - 50} поз.`));
+    }
+  }
+
+  return lines.join("\n").trimEnd().slice(0, 4096);
+}
+
 /** Публичная заявка на заказ с сайта (без авторизации). */
 app.post("/api/public/orders", async (req, res) => {
   const body = req.body ?? {};
@@ -375,6 +582,17 @@ app.post("/api/public/orders", async (req, res) => {
       [phoneStored, address.slice(0, 2000), JSON.stringify(payload)],
     );
     const orderNumber = rows[0]?.order_number;
+    if (orderNumber != null) {
+      void sendTelegramMessage(
+        formatOrderForTelegram({
+          orderNumber: String(orderNumber),
+          phone: phoneStored,
+          address: address.slice(0, 2000),
+          payload,
+        }),
+        { parseMode: "HTML" },
+      );
+    }
     res.json({ ok: true, orderId: orderNumber != null ? String(orderNumber) : "" });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) });

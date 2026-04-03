@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "telegram-ping": "node scripts/telegram-ping.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^17.4.0",
     "express": "^4.21.2",
     "heic-convert": "^2.1.0",
     "jsonwebtoken": "^9.0.2",

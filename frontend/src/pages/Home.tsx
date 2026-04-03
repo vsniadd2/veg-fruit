@@ -249,7 +249,7 @@ export default function Home() {
                   type="button"
                   onClick={() => navigate("/catalog?seasonal=1")}
                 >
-                  Сезонные наборы
+                  Сезонные товары
                 </button>
                 <Link
                   className="border-2 border-leaf-green text-leaf-green hover:bg-leaf-green hover:text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:-translate-y-1 w-full sm:w-auto text-center"
@@ -586,7 +586,7 @@ export default function Home() {
                     type="button"
                     onClick={() => navigate("/catalog?seasonal=1")}
                   >
-                    Сезонные наборы
+                    Сезонные товары
                   </button>
                 </div>
               </div>

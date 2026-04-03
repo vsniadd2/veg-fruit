@@ -126,8 +126,8 @@ export default function SiteFooter() {
                     strokeWidth="2"
                   />
                 </svg>
-                <a className="hover:text-forest-green" href="tel:+375297606955">
-                  +375(29)760-69-55
+                <a className="hover:text-forest-green" href="tel:+375333918181">
+                  +375 (33) 391-81-81
                 </a>
               </li>
               <li className="flex items-center">
@@ -163,8 +163,8 @@ export default function SiteFooter() {
               <div>УНП 193855188</div>
               <div>Юридический адрес: ул. Веры Хоружей, дом 6А, оф. 117, 220100</div>
               <div className="pt-1 space-y-1">
-                <a className="block hover:text-forest-green" href="tel:+375297606955">
-                  +375(29)760-69-55
+                <a className="block hover:text-forest-green" href="tel:+375333918181">
+                  +375 (33) 391-81-81
                 </a>
                 <a className="block hover:text-forest-green" href="mailto:miksgoldfruct@mail.ru">
                   miksgoldfruct@mail.ru
@@ -176,7 +176,7 @@ export default function SiteFooter() {
         <div className="border-t border-gray-200 pt-4 flex flex-col md:flex-row justify-center items-center text-center text-xs text-gray-400 gap-2 md:gap-6">
           <p>© 2026 Миксголдфрукт. Все права защищены.</p>
           <span className="text-gray-300 hidden md:inline">•</span>
-          <p className="text-gray-400">Версия 01.04.2026-v3</p>
+          <p className="text-gray-400">Версия 03.04.2026-vc</p>
         </div>
       </div>
     </footer>

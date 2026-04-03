@@ -41,6 +41,11 @@ services:
 
       # CORS для админки/сайта (добавьте свой домен/айпи)
       CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173,http://178.172.201.107,http://miksgoldfruct.by,http://www.miksgoldfruct.by,https://miksgoldfruct.by,https://www.miksgoldfruct.by}
+
+      # Telegram (уведомления о новых заказах)
+      TELEGRAM_ORDER_NOTIFICATIONS_ENABLED: ${TELEGRAM_ORDER_NOTIFICATIONS_ENABLED:-true}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy

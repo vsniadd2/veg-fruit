@@ -39,6 +39,11 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_jwt_refresh_secret_change_me}
 
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+
+      # Telegram (уведомления о новых заказах) — можно задать здесь или через .env / переменные хоста
+      TELEGRAM_ORDER_NOTIFICATIONS_ENABLED: ${TELEGRAM_ORDER_NOTIFICATIONS_ENABLED:-true}
+      TELEGRAM_BOT_TOKEN: "8654337012:AAHCrTWODcy6cZ9qRWj7KCZpBQ6mtbKREvY"
+      TELEGRAM_CHAT_ID: "1045774342"
     ports:
       - "3001:3001"
     volumes:
